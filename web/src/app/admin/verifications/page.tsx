@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { FileText } from "lucide-react";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { staffVerificationQueue } from "@/server/services/trust";
+import { publicStorageUrl } from "@/lib/format";
 import { Badge, Card, EmptyState, PageHeader, cn } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { VERIFICATION_KIND_LABEL, VERIFICATION_STATUS_LABEL } from "@/lib/constants";
 import { formatDateTime, timeAgo } from "@/lib/format";
-import type { VerificationRequest, VerificationStatus } from "@/lib/types";
+import type { VerificationStatus } from "@/lib/types";
 import { reviewVerification } from "../actions";
 import { ReasonPicker } from "../reason-picker";
 
@@ -21,35 +22,15 @@ const NOTES = [
   "กรุณาแนบหน้าสารบัญจดทะเบียนของโฉนดเพิ่มเติม",
 ];
 
-type Row = VerificationRequest & {
-  applicant: { display_name: string; is_kyc_verified: boolean } | null;
-  properties: { title: string; code: string } | null;
-  verification_documents: { id: string; doc_type: string; storage_path: string }[];
-};
-
 export default async function AdminVerificationsPage({ searchParams }: PageProps<"/admin/verifications">) {
-  await requireStaff(["verifier"]);
+  const viewer = await requireStaff(["verifier"]);
   const sp = await searchParams;
   const status = STATUSES.find((s) => s === sp.status) ?? "pending";
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("verification_requests")
-    .select("*, applicant:profiles!verification_requests_user_id_fkey(display_name, is_kyc_verified), properties(title, code), verification_documents(id, doc_type, storage_path)")
-    .eq("status", status)
-    .order("submitted_at", { ascending: status === "pending" })
-    .limit(50);
-  const rows = (data ?? []) as Row[];
-
-  // Short-lived links to private documents (verifier storage policy allows read).
-  const paths = rows.flatMap((r) => r.verification_documents.map((d) => d.storage_path));
-  const { data: signed } = paths.length
-    ? await supabase.storage.from("verification-docs").createSignedUrls(paths, 60 * 30)
-    : { data: [] };
-  const urlFor = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
+  const rows = await staffVerificationQueue(viewer, status);
 
   return (
     <div>
-      <PageHeader title="ตรวจเอกสารยืนยัน" subtitle="KYC · ใบอนุญาตนายหน้า · กรรมสิทธิ์ทรัพย์ — ลิงก์เอกสารมีอายุ 30 นาที" />
+      <PageHeader title="ตรวจเอกสารยืนยัน" subtitle="KYC · ใบอนุญาตนายหน้า · กรรมสิทธิ์ทรัพย์ — เอกสารเปิดได้เฉพาะทีมตรวจสอบ" />
       <div className="mb-4 flex flex-wrap gap-2">
         {STATUSES.map((s) => (
           <Link key={s} href={`/admin/verifications?status=${s}`}
@@ -71,16 +52,16 @@ export default async function AdminVerificationsPage({ searchParams }: PageProps
                   ผู้ยื่น: <Link href={`/admin/users/${r.user_id}`} className="font-semibold text-accent">{r.applicant?.display_name}</Link>
                   {r.applicant?.is_kyc_verified && <Badge tone="accent" className="ml-2">KYC ✓</Badge>}
                 </p>
-                {r.properties && <p>ประกาศ: <Link href={`/admin/listings/${r.property_id}`} className="text-accent">{r.properties.code} {r.properties.title}</Link></p>}
+                {r.property && <p>ประกาศ: <Link href={`/admin/listings/${r.property_id}`} className="text-accent">{r.property.code} {r.property.title}</Link></p>}
                 <dl className="grid gap-1 rounded-2xl bg-surface-2 p-3">
                   {Object.entries(r.submitted_data ?? {}).map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-3"><dt className="text-subtle">{k}</dt><dd>{String(v)}</dd></div>
                   ))}
                 </dl>
                 <div className="flex flex-wrap gap-2">
-                  {r.verification_documents.length === 0 && <Badge tone="danger">ไม่มีไฟล์แนบ</Badge>}
-                  {r.verification_documents.map((d) => (
-                    <a key={d.id} href={urlFor.get(d.storage_path) ?? "#"} target="_blank" rel="noreferrer"
+                  {r.documents.length === 0 && <Badge tone="danger">ไม่มีไฟล์แนบ</Badge>}
+                  {r.documents.map((d) => (
+                    <a key={d.id} href={publicStorageUrl("verification-docs", d.storage_path)} target="_blank" rel="noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-1.5 text-xs hover:border-accent">
                       <FileText className="h-3.5 w-3.5" /> {d.doc_type}
                     </a>

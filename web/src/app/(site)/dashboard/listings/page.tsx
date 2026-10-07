@@ -2,25 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Eye, Heart, MessageSquare, Plus } from "lucide-react";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { LISTING_SELECT } from "@/lib/queries";
+import { listManagedListings } from "@/server/services/listings";
 import { Photo } from "@/components/photo";
 import { Badge, ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/constants";
 import { coverUrl, formatDate, primaryPrice } from "@/lib/format";
-import type { PropertyWithMedia } from "@/lib/types";
 
 export const metadata: Metadata = { title: "ประกาศของฉัน" };
 
 export default async function MyListingsPage() {
   const viewer = await requireViewer("/dashboard/listings");
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("properties")
-    .select(LISTING_SELECT)
-    .or(`owner_id.eq.${viewer.id},agent_id.eq.${viewer.id}`)
-    .order("updated_at", { ascending: false });
-  const listings = (data ?? []) as PropertyWithMedia[];
+  const listings = await listManagedListings(viewer);
 
   return (
     <div>

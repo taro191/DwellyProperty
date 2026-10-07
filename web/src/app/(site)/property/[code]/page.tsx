@@ -4,8 +4,7 @@ import Link from "next/link";
 import { cache } from "react";
 import { BedDouble, Bath, Building, Compass, Eye, Heart, Layers, MapPin, Maximize2, ShieldCheck, Sofa, Wallet } from "lucide-react";
 import { getViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { LISTING_SELECT } from "@/lib/queries";
+import { favoriteIds, getListingByCode, getListingContactCard, similarListings } from "@/server/services/listings";
 import { Avatar } from "@/components/avatar";
 import { Gallery } from "@/components/gallery";
 import { FavoriteButton } from "@/components/favorite-button";
@@ -14,23 +13,11 @@ import { SingleLocationMap } from "@/components/map";
 import { Alert, Badge, Card } from "@/components/ui";
 import { CATEGORY_LABEL, DIRECTION_LABEL, FURNISHING_LABEL, LISTING_TYPE_LABEL, STATUS_LABEL } from "@/lib/constants";
 import { areaLabel, coverUrl, formatDate, formatTHB, mediaUrl } from "@/lib/format";
-import type { Profile, PropertyWithMedia } from "@/lib/types";
 import { PropertyActions } from "./property-actions";
 import { ViewTracker } from "./view-tracker";
 import { ReportButton } from "@/components/report-button";
 
-const getProperty = cache(async (code: string) => {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("properties")
-    .select(`${LISTING_SELECT}, zones(slug, name_th, icon), agency_pods(code, name, trust_score, status)`)
-    .eq("code", code.toUpperCase())
-    .maybeSingle();
-  return data as (PropertyWithMedia & {
-    zones: { slug: string; name_th: string; icon: string | null } | null;
-    agency_pods: { code: string; name: string; trust_score: number; status: string } | null;
-  }) | null;
-});
+const getProperty = cache(async (code: string) => getListingByCode(code, await getViewer()));
 
 export async function generateMetadata({ params }: PageProps<"/property/[code]">): Promise<Metadata> {
   const { code } = await params;
@@ -54,21 +41,13 @@ export default async function PropertyPage({ params }: PageProps<"/property/[cod
   if (!p) notFound();
 
   const viewer = await getViewer();
-  const supabase = await createClient();
-  const contactId = p.agent_id ?? p.owner_id;
   const isMine = viewer && (viewer.id === p.owner_id || viewer.id === p.agent_id);
-
-  const [{ data: contact }, { data: agent }, { data: fav }, { data: similar }] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, avatar_url, is_kyc_verified, created_at").eq("id", contactId).maybeSingle(),
-    p.agent_id
-      ? supabase.from("agent_profiles").select("title, company_name, license_verified, rating_avg, rating_count, closed_deals").eq("user_id", p.agent_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    viewer
-      ? supabase.from("favorites").select("property_id").eq("user_id", viewer.id).eq("property_id", p.id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    supabase.from("properties").select(LISTING_SELECT).eq("status", "active").eq("category", p.category)
-      .eq("province", p.province).neq("id", p.id).limit(3),
+  const [{ profile: contact, agent }, favs, similar] = await Promise.all([
+    getListingContactCard(p),
+    favoriteIds(viewer?.id),
+    similarListings(p as Parameters<typeof similarListings>[0]),
   ]);
+  const fav = favs.has(p.id);
 
   const images = [...p.property_media].filter((m) => m.kind !== "video").sort((a, b) => a.sort_order - b.sort_order)
     .map((m) => ({ src: mediaUrl(m), alt: m.caption ?? p.title }));
@@ -231,7 +210,7 @@ export default async function PropertyPage({ params }: PageProps<"/property/[cod
                   {agent?.company_name && ` · ${agent.company_name}`}
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1">
-                  {(contact as Pick<Profile, "is_kyc_verified"> | null)?.is_kyc_verified && <Badge tone="accent">ยืนยันตัวตนแล้ว</Badge>}
+                  {contact?.is_kyc_verified && <Badge tone="accent">ยืนยันตัวตนแล้ว</Badge>}
                   {agent?.license_verified && <Badge tone="accent">ใบอนุญาตนายหน้า</Badge>}
                   {agent && agent.rating_count > 0 && <Badge>★ {Number(agent.rating_avg).toFixed(2)} ({agent.rating_count})</Badge>}
                 </div>
@@ -240,9 +219,9 @@ export default async function PropertyPage({ params }: PageProps<"/property/[cod
                 <FavoriteButton propertyId={p.id} initial={Boolean(fav)} signedIn={Boolean(viewer)} />
               </div>
             </div>
-            {p.agency_pods?.status === "verified" && (
+            {p.pod?.status === "verified" && (
               <p className="mt-3 rounded-2xl bg-accent/10 px-3 py-2 text-xs text-accent-strong">
-                🛡️ ดูแลโดย {p.agency_pods.name} · Trust score {p.agency_pods.trust_score}
+                🛡️ ดูแลโดย {p.pod.name} · Trust score {p.pod.trust_score}
               </p>
             )}
             <div className="mt-4">
@@ -266,10 +245,10 @@ export default async function PropertyPage({ params }: PageProps<"/property/[cod
         </aside>
       </div>
 
-      {(similar?.length ?? 0) > 0 && (
+      {similar.length > 0 && (
         <section>
           <h2 className="mb-4 text-xl font-extrabold">ทรัพย์ใกล้เคียง</h2>
-          <PropertyGrid items={similar as PropertyWithMedia[]} signedIn={Boolean(viewer)} />
+          <PropertyGrid items={similar} signedIn={Boolean(viewer)} />
         </section>
       )}
     </article>

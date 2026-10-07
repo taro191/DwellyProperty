@@ -1,27 +1,22 @@
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, CalendarClock, MessagesSquare, ShieldCheck } from "lucide-react";
 import { getViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { LISTING_SELECT, getFavoriteIds, getZones, searchProperties } from "@/lib/queries";
+import { favoriteIds, featuredListings, searchListings } from "@/server/services/listings";
+import { listZones, liveHub, upcomingActivities } from "@/server/services/content";
 import { PropertyGrid } from "@/components/property-card";
 import { SearchBar } from "@/components/search-bar";
 import { ButtonLink, Card } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import type { PropertyWithMedia } from "@/lib/types";
 
 export default async function HomePage() {
   const viewer = await getViewer();
-  const supabase = await createClient();
-  const now = new Date().toISOString();
-
-  const [zones, latest, { data: featured }, { data: hub }, { data: activities }, favorites] = await Promise.all([
-    getZones(),
-    searchProperties({ sort: "newest" }, { limit: 6 }),
-    supabase.from("properties").select(LISTING_SELECT).eq("status", "active").gt("featured_until", now)
-      .order("featured_until", { ascending: false }).limit(6),
-    supabase.from("hubs").select("slug, name, description, ends_at").eq("status", "live").order("ends_at").limit(1).maybeSingle(),
-    supabase.from("activities").select("id, title, type, starts_at").eq("status", "published").gt("starts_at", now).order("starts_at").limit(3),
-    getFavoriteIds(viewer?.id),
+  const [zones, latest, featured, hub, activities, favorites] = await Promise.all([
+    listZones(),
+    searchListings({ sort: "newest" }, { limit: 6 }),
+    featuredListings(6),
+    liveHub(),
+    upcomingActivities(3),
+    favoriteIds(viewer?.id),
   ]);
 
   return (
@@ -65,10 +60,10 @@ export default async function HomePage() {
         </Link>
       )}
 
-      {(featured?.length ?? 0) > 0 && (
+      {featured.length > 0 && (
         <section>
           <SectionTitle title="ทรัพย์แนะนำ" href="/search?sort=recommended" />
-          <PropertyGrid items={featured as PropertyWithMedia[]} favorites={favorites} signedIn={Boolean(viewer)} />
+          <PropertyGrid items={featured} favorites={favorites} signedIn={Boolean(viewer)} />
         </section>
       )}
 
@@ -91,11 +86,11 @@ export default async function HomePage() {
         ))}
       </section>
 
-      {(activities?.length ?? 0) > 0 && (
+      {activities.length > 0 && (
         <section>
           <SectionTitle title="กิจกรรมและทัวร์สด" href="/hubs" />
           <div className="grid gap-3 md:grid-cols-3">
-            {activities!.map((a) => (
+            {activities.map((a) => (
               <Card key={a.id} className="p-4">
                 <p className="text-xs text-accent">{formatDateTime(a.starts_at)}</p>
                 <p className="mt-1 font-semibold">{a.title}</p>

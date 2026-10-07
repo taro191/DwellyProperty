@@ -1,12 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { dbError, formObject, invalid } from "@/lib/action-utils";
-import { CONSENT_VERSION } from "@/lib/constants";
-import type { ActionResult, AppRole } from "@/lib/types";
+import { fail, formObject, invalid } from "@/lib/action-utils";
+import { completeOnboarding as complete } from "@/server/services/account";
+import type { ActionResult } from "@/lib/types";
 
 const ROLES = ["buyer", "tenant", "owner", "investor", "agent"] as const;
 
@@ -26,24 +26,11 @@ export async function completeOnboarding(fd: FormData): Promise<ActionResult> {
   const parsed = schema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
   const v = parsed.data;
-  const supabase = await createClient();
-
-  const roles = Array.from(new Set<AppRole>([v.primary_role, ...v.roles]));
-  const steps = await Promise.all([
-    supabase.from("profiles").update({
-      display_name: v.display_name, primary_role: v.primary_role, onboarded_at: new Date().toISOString(),
-    }).eq("id", viewer.id),
-    supabase.from("user_roles").upsert(roles.map((role) => ({ user_id: viewer.id, role })), { ignoreDuplicates: true }),
-    supabase.from("profile_private").update({ phone: v.phone ?? null, line_id: v.line_id ?? null }).eq("user_id", viewer.id),
-    supabase.from("consents").insert([
-      { user_id: viewer.id, kind: "terms", version: CONSENT_VERSION, granted: true },
-      { user_id: viewer.id, kind: "privacy", version: CONSENT_VERSION, granted: true },
-      { user_id: viewer.id, kind: "marketing", version: CONSENT_VERSION, granted: v.marketing === "on" },
-    ]),
-  ]);
-  const failed = steps.find((s) => s.error);
-  if (failed) return dbError(failed.error);
-
+  try {
+    await complete(viewer, { ...v, marketing: v.marketing === "on", userAgent: (await headers()).get("user-agent") ?? undefined });
+  } catch (e) {
+    return fail(e);
+  }
   const next = v.next?.startsWith("/") && !v.next.startsWith("//") ? v.next : null;
   redirect(next ?? (v.primary_role === "owner" || v.primary_role === "agent" ? "/dashboard" : "/"));
 }

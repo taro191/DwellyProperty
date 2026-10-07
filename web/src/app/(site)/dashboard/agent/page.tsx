@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { getZones } from "@/lib/queries";
+import { getAgentProfile, latestPartnerRequest, myPods, visibleCommissionPrograms } from "@/server/services/trust";
+import { listZones } from "@/server/services/content";
 import { Alert, Badge, Card, Field, Input, PageHeader, Select, Textarea, buttonClass } from "@/components/ui";
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
 import { CATEGORY_LABEL } from "@/lib/constants";
@@ -14,22 +14,13 @@ export const metadata: Metadata = { title: "นายหน้า & Co-Agent" };
 
 export default async function AgentPage() {
   const viewer = await requireViewer("/dashboard/agent");
-  const supabase = await createClient();
-  const [{ data: profile }, { data: access }, { data: pods }, { data: programs }, zones] = await Promise.all([
-    supabase.from("agent_profiles").select("*").eq("user_id", viewer.id).maybeSingle(),
-    supabase.from("commission_access_requests").select("status, property_id, created_at").eq("agent_id", viewer.id).is("property_id", null)
-      .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("pod_members").select("role, agency_pods(id, code, name, status, trust_score)").eq("user_id", viewer.id),
-    // RLS only returns programmes this agent may see (approved access or own listings)
-    supabase.from("commission_programs").select("*, properties(title, code, listing_type, sale_price, rent_price, status, owner_id)")
-      .eq("enabled", true).limit(50),
-    getZones(),
+  const [profile, access, pods, coAgent, zones] = await Promise.all([
+    getAgentProfile(viewer.id),
+    latestPartnerRequest(viewer),
+    myPods(viewer),
+    visibleCommissionPrograms(viewer),
+    listZones(),
   ]);
-
-  const coAgent = (programs ?? []).filter((c) => {
-    const p = c.properties as { owner_id: string; status: string } | null;
-    return p && p.owner_id !== viewer.id && p.status === "active";
-  });
 
   return (
     <div className="space-y-6">
@@ -82,10 +73,9 @@ export default async function AgentPage() {
           )}
           {coAgent.length > 0 && (
             <div className="divide-y divide-line rounded-2xl border border-line">
-              {coAgent.map((c) => {
-                const p = c.properties as { title: string; code: string; listing_type: string; sale_price: number | null; rent_price: number | null };
+              {coAgent.map(({ c, p }) => {
                 return (
-                  <Link key={c.property_id} href={`/property/${p.code}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-surface-2">
+                  <Link key={p.id} href={`/property/${p.code}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-surface-2">
                     <span className="min-w-0 truncate">{p.title}</span>
                     <span className="text-accent-strong">
                       {c.sale_rate_pct != null && p.sale_price && `ขาย ${c.sale_rate_pct}% (${formatTHB((p.sale_price * c.sale_rate_pct) / 100)})`}
@@ -102,9 +92,9 @@ export default async function AgentPage() {
       {profile && (
         <Card className="space-y-3 p-5">
           <h2 className="font-bold">Agency Pod</h2>
-          {(pods ?? []).length > 0 ? (
-            (pods ?? []).map((m) => {
-              const pod = m.agency_pods as unknown as { id: string; code: string; name: string; status: string; trust_score: number };
+          {pods.length > 0 ? (
+            pods.map((m) => {
+              const pod = m.pod;
               return (
                 <div key={pod.id} className="flex items-center justify-between rounded-2xl bg-surface-2 px-4 py-3 text-sm">
                   <span><b>{pod.name}</b> · {pod.code} {m.role === "leader" && <Badge>หัวหน้า</Badge>}</span>

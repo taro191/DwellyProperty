@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ImagePlus, Star, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { uploadFile } from "@/lib/upload";
 import { mediaUrl } from "@/lib/format";
 import { Photo } from "@/components/photo";
 import { Alert, Badge, Button } from "@/components/ui";
@@ -27,7 +27,7 @@ async function compress(file: File): Promise<Blob> {
   return blob;
 }
 
-export function MediaManager({ propertyId, userId, media }: { propertyId: string; userId: string; media: PropertyMedia[] }) {
+export function MediaManager({ propertyId, media }: { propertyId: string; media: PropertyMedia[] }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<string | null>(null);
@@ -37,20 +37,14 @@ export function MediaManager({ propertyId, userId, media }: { propertyId: string
 
   async function upload(files: FileList) {
     setError(null);
-    const supabase = createClient();
     const list = Array.from(files).slice(0, 30 - media.length);
     for (const [i, file] of list.entries()) {
       setProgress(`กำลังอัปโหลด ${i + 1}/${list.length}…`);
       try {
         const blob = await compress(file);
-        const path = `${userId}/${propertyId}/${crypto.randomUUID()}.webp`;
-        const { error: upErr } = await supabase.storage.from("property-media").upload(path, blob, { contentType: "image/webp", cacheControl: "31536000" });
-        if (upErr) throw new Error(upErr.message);
-        const res = await addMedia(propertyId, path);
-        if (!res.ok) {
-          await supabase.storage.from("property-media").remove([path]);
-          throw new Error(res.error);
-        }
+        const path = await uploadFile("property-media", propertyId, new File([blob], "photo.webp", { type: "image/webp" }), "photo.webp");
+        const res = await addMedia(propertyId, path); // server removes the file again if this fails
+        if (!res.ok) throw new Error(res.error);
       } catch (e) {
         setError(`${file.name}: ${e instanceof Error ? e.message : "อัปโหลดไม่สำเร็จ"}`);
       }

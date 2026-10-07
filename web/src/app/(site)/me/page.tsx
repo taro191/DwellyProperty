@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getContact } from "@/server/services/account";
 import { Badge, Card, Field, Input, PageHeader, Textarea } from "@/components/ui";
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
 import { ROLE_LABEL } from "@/lib/constants";
@@ -11,14 +11,13 @@ export const metadata: Metadata = { title: "ตั้งค่าบัญชี
 
 export default async function MePage() {
   const viewer = await requireViewer("/me");
-  const supabase = await createClient();
-  const { data: priv } = await supabase.from("profile_private").select("*").eq("user_id", viewer.id).single();
+  const priv = await getContact(viewer.id);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader title="ตั้งค่าบัญชี" subtitle={viewer.email ?? undefined} />
       <Card className="flex flex-wrap items-center gap-4 p-5">
-        <AvatarUploader userId={viewer.id} name={viewer.profile.display_name} src={viewer.profile.avatar_url} />
+        <AvatarUploader name={viewer.profile.display_name} src={viewer.profile.avatar_url} />
         <div className="flex flex-wrap gap-1.5">
           {viewer.roles.map((r) => <Badge key={r} tone={r === viewer.profile.primary_role ? "accent" : "neutral"}>{ROLE_LABEL[r]}</Badge>)}
           {viewer.profile.is_kyc_verified && <Badge tone="accent">ยืนยันตัวตนแล้ว</Badge>}

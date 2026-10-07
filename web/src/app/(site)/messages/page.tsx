@@ -1,18 +1,15 @@
 import type { Metadata } from "next";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listConversations } from "@/server/services/chat";
 import { Alert, EmptyState, PageHeader } from "@/components/ui";
-import type { ConversationSummary } from "@/lib/types";
 import { ConversationList } from "./conversation-list";
 
 export const metadata: Metadata = { title: "ข้อความ" };
 
 export default async function MessagesPage({ searchParams }: PageProps<"/messages">) {
-  await requireViewer("/messages");
+  const viewer = await requireViewer("/messages");
   const sp = await searchParams;
-  const supabase = await createClient();
-  const { data } = await supabase.rpc("list_conversations");
-  const items = (data ?? []) as ConversationSummary[];
+  const items = await listConversations(viewer);
 
   return (
     <div className="mx-auto max-w-2xl">

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireViewer } from "@/lib/auth";
-import { getZones } from "@/lib/queries";
+import { listZones } from "@/server/services/content";
 import { Alert, PageHeader } from "@/components/ui";
 import { ListingForm } from "../listing-form";
 import { createListing } from "../actions";
@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "ลงประกาศใหม่
 
 export default async function NewListingPage() {
   await requireViewer("/dashboard/listings/new");
-  const zones = await getZones();
+  const zones = await listZones();
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="ลงประกาศใหม่" subtitle="ขั้นที่ 1 จาก 2 — กรอกข้อมูลทรัพย์ แล้วเพิ่มรูปในขั้นถัดไป" />

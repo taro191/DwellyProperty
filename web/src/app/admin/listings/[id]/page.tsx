@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { staffGetListing } from "@/server/services/listings";
+import { entityHistory, ownerSummary, reportsForTarget } from "@/server/services/admin";
 import { Photo } from "@/components/photo";
 import { Alert, Badge, Card, Input, PageHeader, Textarea, buttonClass } from "@/components/ui";
 import { ReasonPicker } from "../../reason-picker";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { CATEGORY_LABEL, LISTING_TYPE_LABEL, REPORT_REASON_LABEL, STATUS_LABEL, STATUS_TONE } from "@/lib/constants";
 import { areaLabel, formatDate, formatDateTime, formatTHB, mediaUrl } from "@/lib/format";
-import type { Property, PropertyMedia, ReportReason } from "@/lib/types";
 import { featureListing, reviewListing, takedownListing } from "../../actions";
 
 export const metadata: Metadata = { title: "ตรวจประกาศ" };
@@ -23,19 +23,14 @@ const REJECT_TEMPLATES = [
 ];
 
 export default async function AdminListingDetail({ params }: PageProps<"/admin/listings/[id]">) {
-  await requireStaff(["moderator"]);
+  const viewer = await requireStaff(["moderator"]);
   const { id } = await params;
-  const supabase = await createClient();
-  const { data } = await supabase.from("properties").select("*, property_media(*)").eq("id", id).maybeSingle();
-  if (!data) notFound();
-  const p = data as Property & { property_media: PropertyMedia[] };
-
-  const [{ data: owner }, { data: ownerPrivate }, { count: ownerListings }, { data: reports }, { data: history }] = await Promise.all([
-    supabase.from("profiles").select("id, display_name, is_kyc_verified, status, created_at").eq("id", p.owner_id).single(),
-    supabase.from("profile_private").select("email, phone").eq("user_id", p.owner_id).maybeSingle(),
-    supabase.from("properties").select("id", { count: "exact", head: true }).eq("owner_id", p.owner_id),
-    supabase.from("reports").select("id, reason, details, status, created_at").eq("target_type", "property").eq("target_id", id).order("created_at", { ascending: false }),
-    supabase.from("audit_logs").select("action, summary, data, created_at").eq("entity_type", "properties").eq("entity_id", id).order("created_at", { ascending: false }).limit(20),
+  const p = await staffGetListing(viewer, id);
+  if (!p) notFound();
+  const [owner, reports, history] = await Promise.all([
+    ownerSummary(viewer, p.owner_id),
+    reportsForTarget(viewer, "property", id),
+    entityHistory(viewer, "properties", id),
   ]);
   const media = [...p.property_media].sort((a, b) => a.sort_order - b.sort_order);
 
@@ -77,12 +72,12 @@ export default async function AdminListingDetail({ params }: PageProps<"/admin/l
             </dl>
             {p.description && <p className="mt-4 whitespace-pre-line text-sm text-muted">{p.description}</p>}
           </Card>
-          {(reports?.length ?? 0) > 0 && (
+          {reports.length > 0 && (
             <Card className="p-5">
-              <h2 className="mb-2 font-bold text-red-300">รายงานจากผู้ใช้ ({reports!.length})</h2>
-              {reports!.map((r) => (
+              <h2 className="mb-2 font-bold text-red-300">รายงานจากผู้ใช้ ({reports.length})</h2>
+              {reports.map((r) => (
                 <p key={r.id} className="border-b border-line py-2 text-sm last:border-0">
-                  <Badge tone="danger">{REPORT_REASON_LABEL[r.reason as ReportReason]}</Badge> {r.details} <span className="text-xs text-subtle">· {r.status}</span>
+                  <Badge tone="danger">{REPORT_REASON_LABEL[r.reason]}</Badge> {r.details} <span className="text-xs text-subtle">· {r.status}</span>
                 </p>
               ))}
             </Card>
@@ -93,8 +88,8 @@ export default async function AdminListingDetail({ params }: PageProps<"/admin/l
           <Card className="p-5 text-sm">
             <h2 className="mb-2 font-bold">ผู้ลงประกาศ</h2>
             <Link href={`/admin/users/${owner?.id}`} className="font-semibold text-accent">{owner?.display_name}</Link>
-            <p className="text-subtle">{ownerPrivate?.email} · {ownerPrivate?.phone ?? "ไม่มีเบอร์"}</p>
-            <p className="text-subtle">สมัคร {formatDate(owner?.created_at)} · {ownerListings} ประกาศ</p>
+            <p className="text-subtle">{owner?.email} · {owner?.phone ?? "ไม่มีเบอร์"}</p>
+            <p className="text-subtle">สมัคร {formatDate(owner?.created_at)} · {owner?.listing_count} ประกาศ</p>
             <div className="mt-2 flex gap-1">
               {owner?.is_kyc_verified ? <Badge tone="accent">KYC ✓</Badge> : <Badge>ยังไม่ KYC</Badge>}
               {owner?.status !== "active" && <Badge tone="danger">{owner?.status}</Badge>}
@@ -138,10 +133,10 @@ export default async function AdminListingDetail({ params }: PageProps<"/admin/l
             </>
           )}
 
-          {(history?.length ?? 0) > 0 && (
+          {history.length > 0 && (
             <Card className="p-5 text-sm">
               <h2 className="mb-2 font-bold">ประวัติ</h2>
-              {history!.map((h, i) => (
+              {history.map((h, i) => (
                 <p key={i} className="border-b border-line py-1.5 last:border-0">
                   <span className="font-mono text-xs">{h.action}</span> · <span className="text-xs text-subtle">{formatDateTime(h.created_at)}</span>
                   {(h.data as { reason?: string })?.reason && <span className="block text-xs text-muted">{(h.data as { reason?: string }).reason}</span>}

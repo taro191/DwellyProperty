@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listReports } from "@/server/services/admin";
 import { Badge, Card, EmptyState, PageHeader, Textarea, cn } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { REPORT_REASON_LABEL, REPORT_STATUS_LABEL } from "@/lib/constants";
@@ -20,15 +20,10 @@ function targetHref(r: Report) {
 }
 
 export default async function AdminReportsPage({ searchParams }: PageProps<"/admin/reports">) {
-  await requireStaff(["moderator", "support"]);
+  const viewer = await requireStaff(["moderator", "support"]);
   const sp = await searchParams;
   const status = FILTERS.find((f) => f === sp.status);
-  const supabase = await createClient();
-  let q = supabase.from("reports").select("*, reporter:profiles!reports_reporter_id_fkey(display_name)")
-    .order("created_at", { ascending: true }).limit(100);
-  q = status ? q.eq("status", status) : q.in("status", ["open", "investigating"]);
-  const { data } = await q;
-  const rows = (data ?? []) as (Report & { reporter: { display_name: string } | null })[];
+  const rows = await listReports(viewer, status);
 
   return (
     <div>

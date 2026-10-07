@@ -1,3 +1,6 @@
+// Every page reads the database or the session at request time.
+export const dynamic = "force-dynamic";
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getViewer } from "@/lib/auth";

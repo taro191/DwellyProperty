@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Eye, Heart, Home, MessageSquare, Plus } from "lucide-react";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listManagedListings } from "@/server/services/listings";
+import { listInquiries, sellerCounts } from "@/server/services/deals";
 import { ButtonLink, Card, EmptyState, PageHeader } from "@/components/ui";
 import { INTENT_LABEL } from "@/lib/constants";
 import { timeAgo } from "@/lib/format";
@@ -11,17 +12,12 @@ export const metadata: Metadata = { title: "ศูนย์ผู้ขาย" }
 
 export default async function DashboardPage() {
   const viewer = await requireViewer("/dashboard");
-  const supabase = await createClient();
-
-  const [{ data: listings }, { count: newLeads }, { count: pendingAppts }, { count: pendingOffers }, { data: recentLeads }] =
-    await Promise.all([
-      supabase.from("properties").select("id, status, views_count, saves_count, inquiries_count").or(`owner_id.eq.${viewer.id},agent_id.eq.${viewer.id}`),
-      supabase.from("inquiries").select("id", { count: "exact", head: true }).eq("seller_id", viewer.id).eq("status", "new"),
-      supabase.from("appointments").select("id", { count: "exact", head: true }).eq("seller_id", viewer.id).eq("status", "pending"),
-      supabase.from("offers").select("id", { count: "exact", head: true }).eq("seller_id", viewer.id).eq("status", "pending"),
-      supabase.from("inquiries").select("id, intent, message, created_at, properties(title, code), profiles!inquiries_buyer_id_fkey(display_name)")
-        .eq("seller_id", viewer.id).order("created_at", { ascending: false }).limit(5),
-    ]);
+  const [listings, { newLeads, pendingAppts, pendingOffers }, leads] = await Promise.all([
+    listManagedListings(viewer),
+    sellerCounts(viewer),
+    listInquiries(viewer, "seller"),
+  ]);
+  const recentLeads = leads.slice(0, 5);
 
   const all = listings ?? [];
   const active = all.filter((l) => l.status === "active").length;
@@ -73,17 +69,17 @@ export default async function DashboardPage() {
 
       <section>
         <h2 className="mb-3 text-lg font-bold">ผู้สนใจล่าสุด</h2>
-        {(recentLeads?.length ?? 0) === 0 ? (
+        {recentLeads.length === 0 ? (
           <EmptyState title="ยังไม่มีผู้สนใจ" body="เมื่อมีคนส่งข้อความถึงประกาศของคุณ จะแสดงที่นี่" />
         ) : (
           <Card className="divide-y divide-line">
-            {recentLeads!.map((l) => {
-              const prop = l.properties as unknown as { title: string; code: string } | null;
-              const buyer = l.profiles as unknown as { display_name: string } | null;
+            {recentLeads.map((l) => {
+              const prop = l.properties;
+              const buyer = l.party;
               return (
                 <Link key={l.id} href="/dashboard/leads" className="block px-5 py-4 hover:bg-surface-2">
                   <div className="flex justify-between gap-3 text-sm">
-                    <span className="font-semibold">{buyer?.display_name} · <span className="text-accent">{INTENT_LABEL[l.intent as keyof typeof INTENT_LABEL]}</span></span>
+                    <span className="font-semibold">{buyer?.display_name} · <span className="text-accent">{INTENT_LABEL[l.intent]}</span></span>
                     <span className="shrink-0 text-xs text-subtle">{timeAgo(l.created_at)}</span>
                   </div>
                   <p className="truncate text-xs text-subtle">{prop?.title}</p>

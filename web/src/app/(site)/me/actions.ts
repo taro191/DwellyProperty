@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { dbError, formObject, invalid } from "@/lib/action-utils";
-import { CONSENT_VERSION } from "@/lib/constants";
+import { attempt, fail, formObject, invalid } from "@/lib/action-utils";
+import * as account from "@/server/services/account";
+import * as trust from "@/server/services/trust";
+import { markNotificationsRead as markRead } from "@/server/services/notifications";
+import { publicFileUrl } from "@/server/storage";
 import type { ActionResult } from "@/lib/types";
 
 const profileSchema = z.object({
@@ -19,26 +21,17 @@ export async function saveProfile(fd: FormData): Promise<ActionResult> {
   const viewer = await requireViewer("/me");
   const parsed = profileSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const v = parsed.data;
-  const supabase = await createClient();
-  const [a, b] = await Promise.all([
-    supabase.from("profiles").update({ display_name: v.display_name, bio: v.bio ?? null }).eq("id", viewer.id),
-    supabase.from("profile_private").update({ phone: v.phone ?? null, line_id: v.line_id ?? null }).eq("user_id", viewer.id),
-  ]);
-  if (a.error || b.error) return dbError(a.error ?? b.error);
+  const r = await attempt(() => account.saveProfile(viewer, parsed.data), "บันทึกแล้ว");
   revalidatePath("/me");
-  return { ok: true, message: "บันทึกแล้ว" };
+  return r;
 }
 
 export async function setAvatar(path: string): Promise<ActionResult> {
   const viewer = await requireViewer("/me");
-  if (!path.startsWith(`${viewer.id}/`)) return { ok: false, error: "invalid" };
-  const supabase = await createClient();
-  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-  const { error } = await supabase.from("profiles").update({ avatar_url: `${data.publicUrl}?v=${Date.now()}` }).eq("id", viewer.id);
-  if (error) return dbError(error);
+  if (!path.startsWith(`${viewer.id}/avatar/`)) return { ok: false, error: "invalid" };
+  const r = await attempt(() => account.setAvatar(viewer, publicFileUrl("avatars", path)));
   revalidatePath("/", "layout");
-  return { ok: true };
+  return r;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,44 +52,31 @@ export async function createVerificationRequest(fd: FormData): Promise<ActionRes
   const parsed = verificationSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
   const { kind, property_id, ...data } = parsed.data;
-  if (kind === "property_ownership" && !property_id) return { ok: false, error: "เลือกประกาศที่ต้องการยืนยัน" };
-  const supabase = await createClient();
-  const { data: row, error } = await supabase
-    .from("verification_requests")
-    .insert({
-      user_id: viewer.id, kind, property_id: kind === "property_ownership" ? property_id : null,
-      submitted_data: Object.fromEntries(Object.entries(data).filter(([, x]) => x)),
-    })
-    .select("id")
-    .single();
-  if (error) return dbError(error);
-  return { ok: true, data: { id: row.id } };
+  try {
+    const id = await trust.createVerificationRequest(viewer, {
+      kind, property_id, data: Object.fromEntries(Object.entries(data).filter(([, x]) => x)) as Record<string, string>,
+    });
+    return { ok: true, data: { id } };
+  } catch (e) {
+    return fail(e);
+  }
 }
 
 export async function attachVerificationDoc(requestId: string, docType: string, path: string): Promise<ActionResult> {
   const viewer = await requireViewer();
-  if (!z.uuid().safeParse(requestId).success || !path.startsWith(`${viewer.id}/${requestId}/`)) return { ok: false, error: "invalid" };
-  const supabase = await createClient();
-  const { error } = await supabase.from("verification_documents").insert({ request_id: requestId, doc_type: docType.slice(0, 30), storage_path: path });
-  if (error) return dbError(error);
+  if (!z.uuid().safeParse(requestId).success) return { ok: false, error: "invalid" };
+  const r = await attempt(() => trust.attachVerificationDoc(viewer, requestId, docType, path));
   revalidatePath("/me/verification");
-  return { ok: true };
+  return r;
 }
 
 export async function resubmitVerification(fd: FormData): Promise<ActionResult> {
-  await requireViewer("/me/verification");
+  const viewer = await requireViewer("/me/verification");
   const id = z.uuid().safeParse(fd.get("id"));
   if (!id.success) return { ok: false, error: "invalid" };
-  const note = String(fd.get("note") ?? "").slice(0, 1000);
-  const supabase = await createClient();
-  const { data: current } = await supabase.from("verification_requests").select("submitted_data").eq("id", id.data).single();
-  const { error } = await supabase
-    .from("verification_requests")
-    .update({ submitted_data: { ...(current?.submitted_data ?? {}), applicant_note: note } })
-    .eq("id", id.data);
-  if (error) return dbError(error);
+  const r = await attempt(() => trust.resubmitVerification(viewer, id.data, String(fd.get("note") ?? "")), "ส่งข้อมูลเพิ่มเติมแล้ว");
   revalidatePath("/me/verification");
-  return { ok: true, message: "ส่งข้อมูลเพิ่มเติมแล้ว" };
+  return r;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,36 +85,25 @@ export async function resubmitVerification(fd: FormData): Promise<ActionResult> 
 export async function setMarketingConsent(fd: FormData): Promise<ActionResult> {
   const viewer = await requireViewer("/me/privacy");
   const granted = fd.get("granted") === "true";
-  const supabase = await createClient();
-  const { error } = await supabase.from("consents").insert({
-    user_id: viewer.id, kind: "marketing", version: CONSENT_VERSION, granted, user_agent: null,
-  });
-  if (error) return dbError(error);
+  const r = await attempt(() => account.setMarketingConsent(viewer, granted), granted ? "เปิดรับข่าวสารแล้ว" : "ยกเลิกการรับข่าวสารแล้ว");
   revalidatePath("/me/privacy");
-  return { ok: true, message: granted ? "เปิดรับข่าวสารแล้ว" : "ยกเลิกการรับข่าวสารแล้ว" };
+  return r;
 }
 
 export async function requestAccountDeletion(fd: FormData): Promise<ActionResult> {
   const viewer = await requireViewer("/me/privacy");
   if (fd.get("confirm") !== "ลบบัญชี") return { ok: false, error: "พิมพ์คำว่า “ลบบัญชี” เพื่อยืนยัน" };
-  const supabase = await createClient();
-  const { error } = await supabase.from("account_deletion_requests").insert({
-    user_id: viewer.id, reason: String(fd.get("reason") ?? "").slice(0, 1000) || null,
-  });
-  if (error) return dbError(error);
+  const reason = String(fd.get("reason") ?? "").slice(0, 1000) || undefined;
+  const r = await attempt(() => account.requestDeletion(viewer, reason), "รับคำขอแล้ว ทีมงานจะดำเนินการภายใน 30 วันตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล");
   revalidatePath("/me/privacy");
-  return { ok: true, message: "รับคำขอแล้ว ทีมงานจะดำเนินการภายใน 30 วันตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล" };
+  return r;
 }
 
-export async function cancelAccountDeletion(fd: FormData): Promise<ActionResult> {
+export async function cancelAccountDeletion(): Promise<ActionResult> {
   const viewer = await requireViewer("/me/privacy");
-  const supabase = await createClient();
-  const { error } = await supabase.from("account_deletion_requests").update({ status: "cancelled" })
-    .eq("user_id", viewer.id).eq("status", "pending");
-  if (error) return dbError(error);
-  void fd;
+  const r = await attempt(() => account.cancelDeletion(viewer), "ยกเลิกคำขอลบบัญชีแล้ว");
   revalidatePath("/me/privacy");
-  return { ok: true, message: "ยกเลิกคำขอลบบัญชีแล้ว" };
+  return r;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,11 +112,7 @@ export async function cancelAccountDeletion(fd: FormData): Promise<ActionResult>
 export async function markNotificationsRead(fd: FormData): Promise<ActionResult> {
   const viewer = await requireViewer("/notifications");
   const id = fd.get("id");
-  const supabase = await createClient();
-  let q = supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", viewer.id).is("read_at", null);
-  if (typeof id === "string" && z.uuid().safeParse(id).success) q = q.eq("id", id);
-  const { error } = await q;
-  if (error) return dbError(error);
+  const r = await attempt(() => markRead(viewer, typeof id === "string" && z.uuid().safeParse(id).success ? id : undefined));
   revalidatePath("/", "layout");
-  return { ok: true };
+  return r;
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { staffPods } from "@/server/services/trust";
 import { Badge, Card, EmptyState, Input, PageHeader, Textarea } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
@@ -9,13 +9,8 @@ import { reviewPod } from "../actions";
 export const metadata: Metadata = { title: "Agency Pods" };
 
 export default async function AdminPodsPage() {
-  await requireStaff(["verifier"]);
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("agency_pods")
-    .select("*, leader:profiles!agency_pods_leader_id_fkey(display_name), pod_members(count), zones(name_th)")
-    .order("status").order("created_at", { ascending: false });
-  const pods = data ?? [];
+  const viewer = await requireStaff(["verifier"]);
+  const pods = await staffPods(viewer);
 
   return (
     <div>
@@ -31,8 +26,8 @@ export default async function AdminPodsPage() {
                   <span className="text-xs text-subtle">{p.code}</span>
                 </div>
                 <p className="text-subtle">
-                  หัวหน้า {(p.leader as { display_name: string } | null)?.display_name} · สมาชิก {(p.pod_members as { count: number }[])[0]?.count ?? 0} คน
-                  · โซน {(p.zones as { name_th: string } | null)?.name_th ?? "-"} · สร้าง {formatDate(p.created_at)}
+                  หัวหน้า {p.leader_name} · สมาชิก {p.members} คน
+                  · โซน {p.zone_name ?? "-"} · สร้าง {formatDate(p.created_at)}
                 </p>
                 {p.description && <p className="text-muted">{p.description}</p>}
                 <p className="text-xs">Trust score: <b>{p.trust_score}</b> · ★ {p.rating_avg} ({p.rating_count})</p>

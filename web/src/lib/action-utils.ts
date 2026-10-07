@@ -1,38 +1,27 @@
 import "server-only";
 import type { z } from "zod";
+import { AppError } from "@/server/services/core";
 import type { ActionResult } from "@/lib/types";
 
-/** Map database/trigger errors to messages users can act on. */
-const KNOWN_ERRORS: [RegExp, string][] = [
-  [/Invalid listing status change/, "ไม่สามารถเปลี่ยนสถานะประกาศแบบนี้ได้"],
-  [/not accepting requests/, "ประกาศนี้ไม่เปิดรับคำขอแล้ว"],
-  [/own listing/, "ไม่สามารถทำรายการกับประกาศของตัวเองได้"],
-  [/at least 1 hour/, "กรุณานัดล่วงหน้าอย่างน้อย 1 ชั่วโมง"],
-  [/Offer validity/, "ระยะเวลาข้อเสนอต้องอยู่ระหว่าง 1–30 วัน"],
-  [/Offer has expired/, "ข้อเสนอนี้หมดอายุแล้ว"],
-  [/Counter price is required/, "กรุณาระบุราคาที่ต้องการเสนอกลับ"],
-  [/Invalid offer change|Invalid appointment change/, "ไม่สามารถดำเนินการนี้ได้ในสถานะปัจจุบัน"],
-  [/review only after/, "รีวิวได้หลังจากนัดชมหรือมีการเสนอราคาแล้วเท่านั้น"],
-  [/review yourself/, "ไม่สามารถรีวิวตัวเองได้"],
-  [/Only agents/, "เฉพาะบัญชีนายหน้าเท่านั้น"],
-  [/Staff permission required/, "คุณไม่มีสิทธิ์ทำรายการนี้"],
-  [/reason is required|note is required/, "กรุณาระบุเหตุผล"],
-  [/Sign in required/, "กรุณาเข้าสู่ระบบ"],
-  [/locked while under review/, "คำขออยู่ระหว่างตรวจสอบ ยังแก้ไขไม่ได้"],
-  [/verification_requests_one_open/, "คุณมีคำขอประเภทนี้ที่รอตรวจสอบอยู่แล้ว"],
-  [/commission_access_unique/, "คุณส่งคำขอนี้ไปแล้ว"],
-  [/duplicate key/, "ข้อมูลนี้มีอยู่แล้ว"],
-  [/row-level security/, "คุณไม่มีสิทธิ์ทำรายการนี้ หรือบัญชีถูกระงับ"],
-  [/properties_price_matches_type/, "กรุณากรอกราคาให้ตรงกับประเภทประกาศ"],
-  [/Activity is full/, "กิจกรรมนี้ที่นั่งเต็มแล้ว"],
-  [/Registration closed/, "ปิดรับสมัครแล้ว"],
-];
+/** Turn a thrown error into an ActionResult; business-rule errors carry their own Thai message. */
+export function fail(err: unknown, fallback = "เกิดข้อผิดพลาด กรุณาลองใหม่"): ActionResult<never> {
+  if (err instanceof AppError) return { ok: false, error: err.message };
+  // Let Next.js redirects / notFound propagate.
+  if (err && typeof err === "object" && "digest" in err) throw err;
+  const code = (err as { code?: string } | null)?.code;
+  if (code === "ER_DUP_ENTRY") return { ok: false, error: "ข้อมูลนี้มีอยู่แล้ว" };
+  console.error("[action]", err);
+  return { ok: false, error: fallback };
+}
 
-export function dbError(error: { message: string } | null | undefined, fallback = "เกิดข้อผิดพลาด กรุณาลองใหม่"): ActionResult<never> {
-  const msg = error?.message ?? "";
-  const hit = KNOWN_ERRORS.find(([re]) => re.test(msg));
-  if (!hit) console.error("[db]", msg);
-  return { ok: false, error: hit ? hit[1] : fallback };
+/** Run a service call and map success/failure to ActionResult. */
+export async function attempt<T>(fn: () => Promise<T>, message?: string): Promise<ActionResult<T>> {
+  try {
+    const data = await fn();
+    return { ok: true, data, message };
+  } catch (err) {
+    return fail(err);
+  }
 }
 
 export function invalid(error: z.ZodError): ActionResult<never> {

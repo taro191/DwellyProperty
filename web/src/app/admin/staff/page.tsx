@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listStaff } from "@/server/services/admin";
 import { Badge, Card, Field, Input, PageHeader, Select } from "@/components/ui";
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
 import { STAFF_ROLE_LABEL } from "@/lib/constants";
@@ -20,13 +20,7 @@ const ROLE_HELP: Record<StaffRole, string> = {
 
 export default async function StaffPage() {
   const viewer = await requireStaff(["super_admin"]);
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("staff_members")
-    .select("*, profile:profiles!staff_members_user_id_fkey(display_name)")
-    .order("active", { ascending: false })
-    .order("created_at");
-  const staff = data ?? [];
+  const staff = (await listStaff(viewer)).map((x) => ({ ...x.s, name: x.name }));
   const roles = Object.keys(STAFF_ROLE_LABEL) as StaffRole[];
 
   return (
@@ -36,7 +30,7 @@ export default async function StaffPage() {
         {staff.map((s) => (
           <div key={s.user_id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
             <div>
-              <Link href={`/admin/users/${s.user_id}`} className="font-semibold text-accent">{(s.profile as { display_name: string } | null)?.display_name}</Link>
+              <Link href={`/admin/users/${s.user_id}`} className="font-semibold text-accent">{s.name}</Link>
               {!s.active && <Badge className="ml-2" tone="danger">ปิดใช้งาน</Badge>}
             </div>
             {s.user_id === viewer.id ? (

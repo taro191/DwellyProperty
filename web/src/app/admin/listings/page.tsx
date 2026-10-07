@@ -1,33 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { LISTING_SELECT } from "@/lib/queries";
+import { staffListListings } from "@/server/services/listings";
 import { Photo } from "@/components/photo";
 import { Badge, Card, EmptyState, Input, PageHeader, buttonClass, cn } from "@/components/ui";
 import { CATEGORY_LABEL, STATUS_LABEL, STATUS_TONE } from "@/lib/constants";
 import { coverUrl, primaryPrice, timeAgo } from "@/lib/format";
-import type { PropertyStatus, PropertyWithMedia } from "@/lib/types";
+import type { PropertyStatus } from "@/lib/types";
 
 export const metadata: Metadata = { title: "ตรวจประกาศ" };
 
 const FILTERS: (PropertyStatus | "all")[] = ["pending_review", "active", "rejected", "expired", "all"];
 
 export default async function AdminListingsPage({ searchParams }: PageProps<"/admin/listings">) {
-  await requireStaff(["moderator"]);
+  const viewer = await requireStaff(["moderator"]);
   const sp = await searchParams;
   const status = (FILTERS.find((f) => f === sp.status) ?? "pending_review") as PropertyStatus | "all";
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 100) : "";
-  const supabase = await createClient();
-
-  let query = supabase.from("properties")
-    .select(`${LISTING_SELECT}, owner:profiles!properties_owner_id_fkey(display_name, is_kyc_verified, created_at)`)
-    .order(status === "pending_review" ? "updated_at" : "created_at", { ascending: status === "pending_review" })
-    .limit(100);
-  if (status !== "all") query = query.eq("status", status);
-  if (q) query = /^DW\d+$/i.test(q) ? query.eq("code", q.toUpperCase()) : query.ilike("title", `%${q.replace(/[%_]/g, "")}%`);
-  const { data } = await query;
-  const rows = (data ?? []) as (PropertyWithMedia & { owner: { display_name: string; is_kyc_verified: boolean; created_at: string } | null })[];
+  const rows = await staffListListings(viewer, status, q);
 
   return (
     <div>

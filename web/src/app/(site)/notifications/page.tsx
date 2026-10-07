@@ -2,21 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listNotifications } from "@/server/services/notifications";
 import { Card, EmptyState, PageHeader, cn } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { timeAgo } from "@/lib/format";
-import type { Notification } from "@/lib/types";
 import { markNotificationsRead } from "../me/actions";
 
 export const metadata: Metadata = { title: "การแจ้งเตือน" };
 
 export default async function NotificationsPage() {
   const viewer = await requireViewer("/notifications");
-  const supabase = await createClient();
-  const { data } = await supabase.from("notifications").select("*").eq("user_id", viewer.id)
-    .order("created_at", { ascending: false }).limit(100);
-  const items = (data ?? []) as Notification[];
+  const items = await listNotifications(viewer);
   const unread = items.filter((n) => !n.read_at).length;
 
   return (

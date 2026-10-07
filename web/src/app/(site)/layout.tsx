@@ -1,3 +1,6 @@
+// Every page reads the database or the session at request time.
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { BottomNav } from "@/components/bottom-nav";

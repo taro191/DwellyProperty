@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { dbError, formObject, invalid } from "@/lib/action-utils";
+import { attempt, fail, formObject, invalid } from "@/lib/action-utils";
+import * as listings from "@/server/services/listings";
+import * as trust from "@/server/services/trust";
+import { removeFiles } from "@/server/storage";
 import type { ActionResult, PropertyStatus } from "@/lib/types";
 
 const optNum = (min = 0, max = 1e12, msg = "ตัวเลขไม่ถูกต้อง") => z.coerce.number(msg).min(min, msg).max(max, msg).optional();
@@ -111,114 +113,88 @@ export async function createListing(fd: FormData): Promise<ActionResult> {
   const viewer = await requireViewer("/dashboard/listings/new");
   const parsed = listingSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("properties")
-    .insert({ ...toRow(parsed.data), owner_id: viewer.id, status: "draft" })
-    .select("id")
-    .single();
-  if (error) return dbError(error);
-  // Make sure the owner role exists so the seller tools show up.
-  await supabase.from("user_roles").upsert({ user_id: viewer.id, role: "owner" }, { ignoreDuplicates: true });
-  redirect(`/dashboard/listings/${data.id}?created=1#photos`);
+  let id: string;
+  try {
+    ({ id } = await listings.createListing(viewer, toRow(parsed.data)));
+  } catch (e) {
+    return fail(e);
+  }
+  redirect(`/dashboard/listings/${id}?created=1#photos`);
 }
 
 export async function updateListing(fd: FormData): Promise<ActionResult> {
-  await requireViewer("/dashboard/listings");
+  const viewer = await requireViewer("/dashboard/listings");
   const id = z.uuid().safeParse(fd.get("id"));
   if (!id.success) return { ok: false, error: "invalid" };
   const parsed = listingSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const supabase = await createClient();
-  const { error, count } = await supabase.from("properties").update(toRow(parsed.data), { count: "exact" }).eq("id", id.data);
-  if (error) return dbError(error);
-  if (!count) return { ok: false, error: "ไม่พบประกาศ หรือคุณไม่มีสิทธิ์แก้ไข" };
+  const r = await attempt(() => listings.updateListing(viewer, id.data, toRow(parsed.data)), "บันทึกการแก้ไขแล้ว");
   revalidatePath(`/dashboard/listings/${id.data}`);
-  return { ok: true, message: "บันทึกการแก้ไขแล้ว" };
+  return r;
 }
 
-const STATUS_TARGETS: PropertyStatus[] = ["pending_review", "draft", "reserved", "active", "sold", "rented", "archived"];
+const STATUS_TARGETS = ["pending_review", "draft", "reserved", "active", "sold", "rented", "archived"] as const;
 
 export async function changeListingStatus(fd: FormData): Promise<ActionResult> {
-  await requireViewer("/dashboard/listings");
+  const viewer = await requireViewer("/dashboard/listings");
   const id = z.uuid().safeParse(fd.get("id"));
-  const status = z.enum(STATUS_TARGETS as [PropertyStatus, ...PropertyStatus[]]).safeParse(fd.get("status"));
+  const status = z.enum(STATUS_TARGETS).safeParse(fd.get("status"));
   if (!id.success || !status.success) return { ok: false, error: "invalid" };
-  const supabase = await createClient();
-
-  if (status.data === "pending_review") {
-    const { count } = await supabase.from("property_media").select("id", { count: "exact", head: true }).eq("property_id", id.data);
-    if (!count) return { ok: false, error: "กรุณาเพิ่มรูปอย่างน้อย 1 รูปก่อนส่งตรวจ" };
-  }
-  const { error } = await supabase.from("properties").update({ status: status.data }).eq("id", id.data);
-  if (error) return dbError(error);
+  const r = await attempt(
+    () => listings.changeListingStatus(viewer, id.data, status.data as PropertyStatus),
+    status.data === "pending_review" ? "ส่งให้ทีมงานตรวจสอบแล้ว ปกติใช้เวลาไม่เกิน 24 ชั่วโมง" : "อัปเดตสถานะแล้ว",
+  );
   revalidatePath(`/dashboard/listings/${id.data}`);
   revalidatePath("/dashboard/listings");
-  return {
-    ok: true,
-    message: status.data === "pending_review" ? "ส่งให้ทีมงานตรวจสอบแล้ว ปกติใช้เวลาไม่เกิน 24 ชั่วโมง" : "อัปเดตสถานะแล้ว",
-  };
+  return r;
 }
 
 export async function deleteListing(fd: FormData): Promise<ActionResult> {
   const viewer = await requireViewer("/dashboard/listings");
   const id = z.uuid().safeParse(fd.get("id"));
   if (!id.success) return { ok: false, error: "invalid" };
-  const supabase = await createClient();
-  const { data: media } = await supabase.from("property_media").select("storage_path").eq("property_id", id.data);
-  const { error, count } = await supabase.from("properties").delete({ count: "exact" }).eq("id", id.data);
-  if (error) return dbError(error);
-  if (!count) return { ok: false, error: "ลบได้เฉพาะแบบร่างหรือประกาศที่ไม่ผ่านการตรวจ" };
-  const paths = (media ?? []).map((m) => m.storage_path).filter((p): p is string => Boolean(p?.startsWith(viewer.id + "/")));
-  if (paths.length) await supabase.storage.from("property-media").remove(paths);
+  try {
+    const paths = await listings.deleteListing(viewer, id.data);
+    await removeFiles("property-media", paths.filter((p) => p.startsWith(viewer.id + "/")));
+  } catch (e) {
+    return fail(e);
+  }
   redirect("/dashboard/listings");
 }
 
-// ---------------------------------------------------------------------------
-// Media (files are uploaded from the browser straight to Storage; we record rows)
-// ---------------------------------------------------------------------------
+// Media: the browser uploads to /api/upload, then records the returned path here.
 export async function addMedia(propertyId: string, storagePath: string): Promise<ActionResult> {
   const viewer = await requireViewer();
-  if (!z.uuid().safeParse(propertyId).success || !storagePath.startsWith(`${viewer.id}/${propertyId}/`)) {
-    return { ok: false, error: "invalid" };
-  }
-  const supabase = await createClient();
-  const { count } = await supabase.from("property_media").select("id", { count: "exact", head: true }).eq("property_id", propertyId);
-  if ((count ?? 0) >= 30) return { ok: false, error: "เพิ่มรูปได้สูงสุด 30 รูป" };
-  const { error } = await supabase.from("property_media").insert({
-    property_id: propertyId, storage_path: storagePath, kind: "image", sort_order: count ?? 0,
-  });
-  if (error) return dbError(error);
+  if (!z.uuid().safeParse(propertyId).success) return { ok: false, error: "invalid" };
+  const r = await attempt(() => listings.addMedia(viewer, propertyId, storagePath));
+  if (!r.ok) await removeFiles("property-media", [storagePath].filter((p) => p.startsWith(`${viewer.id}/${propertyId}/`)));
   revalidatePath(`/dashboard/listings/${propertyId}`);
-  return { ok: true };
+  return r;
 }
 
 export async function removeMedia(mediaId: string): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   if (!z.uuid().safeParse(mediaId).success) return { ok: false, error: "invalid" };
-  const supabase = await createClient();
-  const { data: row } = await supabase.from("property_media").select("property_id, storage_path").eq("id", mediaId).single();
-  if (!row) return { ok: false, error: "ไม่พบรูป" };
-  const { error } = await supabase.from("property_media").delete().eq("id", mediaId);
-  if (error) return dbError(error);
-  if (row.storage_path) await supabase.storage.from("property-media").remove([row.storage_path]);
-  revalidatePath(`/dashboard/listings/${row.property_id}`);
-  return { ok: true };
+  try {
+    const m = await listings.removeMedia(viewer, mediaId);
+    if (m.storage_path) await removeFiles("property-media", [m.storage_path]);
+    revalidatePath(`/dashboard/listings/${m.property_id}`);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
 }
 
 export async function makeCover(mediaId: string): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   if (!z.uuid().safeParse(mediaId).success) return { ok: false, error: "invalid" };
-  const supabase = await createClient();
-  const { data: row } = await supabase.from("property_media").select("property_id").eq("id", mediaId).single();
-  if (!row) return { ok: false, error: "ไม่พบรูป" };
-  const { data: all } = await supabase.from("property_media").select("id").eq("property_id", row.property_id).order("sort_order");
-  const ordered = [mediaId, ...(all ?? []).map((m) => m.id).filter((id) => id !== mediaId)];
-  const results = await Promise.all(ordered.map((id, i) => supabase.from("property_media").update({ sort_order: i }).eq("id", id)));
-  const failed = results.find((r) => r.error);
-  if (failed) return dbError(failed.error);
-  revalidatePath(`/dashboard/listings/${row.property_id}`);
-  return { ok: true };
+  try {
+    const propertyId = await listings.makeCover(viewer, mediaId);
+    revalidatePath(`/dashboard/listings/${propertyId}`);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -237,13 +213,12 @@ const commissionSchema = z.object({
 });
 
 export async function saveCommission(fd: FormData): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   const parsed = commissionSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
   const { enabled, ...v } = parsed.data;
-  const supabase = await createClient();
-  const { error } = await supabase.from("commission_programs").upsert({
-    ...v,
+  const r = await attempt(() => trust.saveCommission(viewer, {
+    property_id: v.property_id,
     enabled: enabled === "on",
     sale_rate_pct: v.sale_rate_pct ?? null,
     rent_month1_rate_pct: v.rent_month1_rate_pct ?? null,
@@ -251,20 +226,21 @@ export async function saveCommission(fd: FormData): Promise<ActionResult> {
     rent_month3_plus_rate_pct: v.rent_month3_plus_rate_pct ?? null,
     renewal_rate_pct: v.renewal_rate_pct ?? null,
     terms: v.terms ?? null,
-  });
-  if (error) return dbError(error);
+  }), "บันทึกเงื่อนไข Co-Agent แล้ว (เห็นเฉพาะนายหน้าที่ได้รับอนุญาต)");
   revalidatePath(`/dashboard/listings/${v.property_id}`);
-  return { ok: true, message: "บันทึกเงื่อนไข Co-Agent แล้ว (เห็นเฉพาะนายหน้าที่ได้รับอนุญาต)" };
+  return r;
 }
 
 export async function decideCommissionAccess(fd: FormData): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   const id = z.uuid().safeParse(fd.get("id"));
   const status = z.enum(["approved", "rejected", "revoked"]).safeParse(fd.get("status"));
   if (!id.success || !status.success) return { ok: false, error: "invalid" };
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("commission_access_requests").update({ status: status.data }).eq("id", id.data).select("property_id").single();
-  if (error) return dbError(error);
-  revalidatePath(`/dashboard/listings/${data.property_id}`);
-  return { ok: true };
+  try {
+    const propertyId = await trust.decideCommissionAccess(viewer, id.data, status.data);
+    if (propertyId) revalidatePath(`/dashboard/listings/${propertyId}`);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
 }

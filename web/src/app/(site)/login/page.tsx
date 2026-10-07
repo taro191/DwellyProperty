@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/auth";
 import { Alert, Card } from "@/components/ui";
 import { LoginForms } from "./login-forms";
+import { enabledProviders } from "@/server/auth";
 
 export const metadata: Metadata = { title: "เข้าสู่ระบบ" };
 
@@ -22,7 +23,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <Alert tone="danger">เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</Alert>
           </div>
         )}
-        <LoginForms next={next} />
+        <LoginForms next={next} providers={enabledProviders} />
         <p className="mt-6 text-xs text-subtle">
           การเข้าสู่ระบบถือว่าคุณยอมรับ <Link href="/legal/terms" className="underline">ข้อกำหนดการใช้งาน</Link> และ{" "}
           <Link href="/legal/privacy" className="underline">นโยบายความเป็นส่วนตัว</Link>

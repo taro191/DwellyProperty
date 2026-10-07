@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Bell, MessageCircle, Plus, Shield } from "lucide-react";
 import { getViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { unreadNotificationCount } from "@/server/services/notifications";
+import { unreadMessageCount } from "@/server/services/chat";
 import { buttonClass } from "@/components/ui";
 import { UserMenu } from "@/components/user-menu";
 
@@ -14,15 +15,6 @@ export function Logo() {
   );
 }
 
-async function unreadCounts(userId: string) {
-  const supabase = await createClient();
-  const [{ count: notifications }, { data: convs }] = await Promise.all([
-    supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", userId).is("read_at", null),
-    supabase.rpc("list_conversations"),
-  ]);
-  const messages = ((convs ?? []) as { unread_count: number }[]).reduce((n, c) => n + Number(c.unread_count), 0);
-  return { notifications: notifications ?? 0, messages };
-}
 
 function CountDot({ n }: { n: number }) {
   if (!n) return null;
@@ -35,7 +27,9 @@ function CountDot({ n }: { n: number }) {
 
 export async function SiteHeader() {
   const viewer = await getViewer();
-  const counts = viewer ? await unreadCounts(viewer.id) : null;
+  const counts = viewer
+    ? { notifications: await unreadNotificationCount(viewer), messages: await unreadMessageCount(viewer) }
+    : null;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">

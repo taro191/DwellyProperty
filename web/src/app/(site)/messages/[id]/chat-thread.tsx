@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { SendHorizontal } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { markRead, sendMessage } from "../actions";
 import { cn } from "@/components/ui";
 import type { Message } from "@/lib/types";
 
@@ -16,26 +16,29 @@ export function ChatThread({ conversationId, viewerId, initial }: { conversation
   const [error, setError] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
-  // Live updates via Supabase Realtime (RLS limits events to participants).
+  // Live updates via Server-Sent Events; EventSource reconnects automatically and
+  // `since` lets the server replay anything missed while disconnected.
+  const lastSeen = useRef(initial.at(-1)?.created_at ?? new Date().toISOString());
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`conversation:${conversationId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
-        (payload: { new: Record<string, unknown> }) => {
-          const m = payload.new as unknown as Message;
-          setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
-          if (m.sender_id !== viewerId) {
-            void supabase.from("conversation_participants").update({ last_read_at: new Date().toISOString() })
-              .eq("conversation_id", conversationId).eq("user_id", viewerId);
-          }
-        },
-      )
-      .subscribe();
+    let es: EventSource | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const connect = () => {
+      es = new EventSource(`/api/chat/${conversationId}/stream?since=${encodeURIComponent(lastSeen.current)}`);
+      es.addEventListener("message", (ev) => {
+        const m = JSON.parse((ev as MessageEvent<string>).data) as Message;
+        if (m.created_at > lastSeen.current) lastSeen.current = m.created_at;
+        setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
+        if (m.sender_id !== viewerId) void markRead(conversationId);
+      });
+      es.onerror = () => {
+        es?.close();
+        retry = setTimeout(connect, 3000);
+      };
+    };
+    connect();
     return () => {
-      void supabase.removeChannel(channel);
+      clearTimeout(retry);
+      es?.close();
     };
   }, [conversationId, viewerId]);
 
@@ -49,15 +52,12 @@ export function ChatThread({ conversationId, viewerId, initial }: { conversation
     if (!body || sending) return;
     setSending(true);
     setError(null);
-    const { data, error: err } = await createClient()
-      .from("messages")
-      .insert({ conversation_id: conversationId, sender_id: viewerId, body })
-      .select()
-      .single();
+    const res = await sendMessage(conversationId, body);
     setSending(false);
-    if (err) return setError("ส่งข้อความไม่สำเร็จ");
+    if (!res.ok || !res.data) return setError(res.ok ? "ส่งข้อความไม่สำเร็จ" : res.error);
+    const m = res.data;
     setText("");
-    setMessages((prev) => (prev.some((x) => x.id === data.id) ? prev : [...prev, data as Message]));
+    setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
   }
 
   return (

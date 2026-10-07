@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { listHubs, myRegistrations, upcomingActivities } from "@/server/services/content";
 import { getViewer } from "@/lib/auth";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { ActivityRegisterButton } from "./register-button";
@@ -14,19 +14,17 @@ const ACTIVITY_LABEL: Record<string, string> = {
 
 export default async function HubsPage() {
   const viewer = await getViewer();
-  const supabase = await createClient();
-  const [{ data: hubs }, { data: activities }, { data: mine }] = await Promise.all([
-    supabase.from("hubs").select("*, hub_properties(count)").in("status", ["live", "scheduled"]).order("starts_at"),
-    supabase.from("activities").select("*").eq("status", "published").gt("starts_at", new Date().toISOString()).order("starts_at").limit(20),
-    viewer ? supabase.from("activity_registrations").select("activity_id").eq("user_id", viewer.id) : Promise.resolve({ data: [] }),
+  const [hubs, activities, registered] = await Promise.all([
+    listHubs(["live", "scheduled"]),
+    upcomingActivities(20),
+    myRegistrations(viewer?.id),
   ]);
-  const registered = new Set((mine ?? []).map((r) => r.activity_id as string));
 
   return (
     <div className="space-y-10">
       <PageHeader title="Dwelly Hubs & กิจกรรม" subtitle="แคมเปญรวมทรัพย์ตามธีม ทัวร์สด และเวิร์กช็อป" />
       <section className="space-y-3">
-        {(hubs?.length ?? 0) === 0 ? <EmptyState title="ยังไม่มี Hub ที่เปิดอยู่" /> : hubs!.map((h) => (
+        {hubs.length === 0 ? <EmptyState title="ยังไม่มี Hub ที่เปิดอยู่" /> : hubs.map((h) => (
           <Link key={h.id} href={`/hubs/${h.slug}`}>
             <Card className="p-5 transition-colors hover:border-accent/50">
               <div className="flex flex-wrap items-center gap-2">
@@ -35,16 +33,16 @@ export default async function HubsPage() {
               </div>
               <p className="mt-2 text-lg font-bold">{h.name}</p>
               {h.description && <p className="text-sm text-subtle">{h.description}</p>}
-              <p className="mt-2 text-xs text-accent">{(h.hub_properties as { count: number }[])[0]?.count ?? 0} ทรัพย์ในงาน</p>
+              <p className="mt-2 text-xs text-accent">{h.property_count} ทรัพย์ในงาน</p>
             </Card>
           </Link>
         ))}
       </section>
       <section>
         <h2 className="mb-4 text-xl font-extrabold">กิจกรรมที่กำลังจะมาถึง</h2>
-        {(activities?.length ?? 0) === 0 ? <EmptyState title="ยังไม่มีกิจกรรม" /> : (
+        {activities.length === 0 ? <EmptyState title="ยังไม่มีกิจกรรม" /> : (
           <div className="grid gap-3 md:grid-cols-2">
-            {activities!.map((a) => (
+            {activities.map((a) => (
               <Card key={a.id} className="p-5">
                 <div className="flex items-center gap-2">
                   <Badge tone="info">{ACTIVITY_LABEL[a.type] ?? a.type}</Badge>

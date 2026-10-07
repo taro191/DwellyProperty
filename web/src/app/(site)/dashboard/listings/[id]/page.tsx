@@ -3,13 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { getZones } from "@/lib/queries";
+import { getManagedListing } from "@/server/services/listings";
+import { listZones } from "@/server/services/content";
+import { getCommissionForOwner, latestOwnershipVerification } from "@/server/services/trust";
 import { Alert, Badge, Card, Field, Input, PageHeader, Textarea, buttonClass } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { STATUS_LABEL, STATUS_TONE, VERIFICATION_STATUS_LABEL } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
-import type { Property, PropertyMedia } from "@/lib/types";
 import { ListingForm } from "../listing-form";
 import { MediaManager } from "../media-manager";
 import { StatusActions } from "./status-actions";
@@ -21,21 +21,14 @@ export default async function EditListingPage({ params, searchParams }: PageProp
   const { id } = await params;
   const sp = await searchParams;
   const viewer = await requireViewer(`/dashboard/listings/${id}`);
-  const supabase = await createClient();
-
-  const { data: property } = await supabase.from("properties").select("*, property_media(*)").eq("id", id).maybeSingle();
-  if (!property || (property.owner_id !== viewer.id && property.agent_id !== viewer.id)) notFound();
-  const p = property as Property & { property_media: PropertyMedia[] };
+  const p = await getManagedListing(viewer, id);
+  if (!p) notFound();
   const isOwner = p.owner_id === viewer.id;
 
-  const [zones, { data: commission }, { data: accessRequests }, { data: ownership }] = await Promise.all([
-    getZones(),
-    supabase.from("commission_programs").select("*").eq("property_id", id).maybeSingle(),
-    isOwner
-      ? supabase.from("commission_access_requests").select("id, status, message, created_at, profiles!commission_access_requests_agent_id_fkey(display_name)")
-          .eq("property_id", id).order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] }),
-    supabase.from("verification_requests").select("status, reviewer_note").eq("property_id", id).order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
+  const [zones, { program: commission, requests: accessRequests }, ownership] = await Promise.all([
+    listZones(),
+    getCommissionForOwner(viewer, id),
+    latestOwnershipVerification(viewer, id),
   ]);
 
   return (
@@ -74,7 +67,7 @@ export default async function EditListingPage({ params, searchParams }: PageProp
 
       <Card className="p-5" id="photos">
         <p className="mb-3 text-base font-bold">รูปภาพ</p>
-        <MediaManager propertyId={p.id} userId={viewer.id} media={p.property_media} />
+        <MediaManager propertyId={p.id} media={p.property_media} />
       </Card>
 
       {isOwner && (
@@ -85,7 +78,7 @@ export default async function EditListingPage({ params, searchParams }: PageProp
               {p.is_verified
                 ? "ประกาศนี้ได้รับการยืนยันกรรมสิทธิ์แล้ว"
                 : ownership
-                  ? `สถานะคำขอ: ${VERIFICATION_STATUS_LABEL[ownership.status as keyof typeof VERIFICATION_STATUS_LABEL]}${ownership.reviewer_note ? ` — ${ownership.reviewer_note}` : ""}`
+                  ? `สถานะคำขอ: ${VERIFICATION_STATUS_LABEL[ownership.status]}${ownership.reviewer_note ? ` — ${ownership.reviewer_note}` : ""}`
                   : "ส่งสำเนาโฉนด/สัญญาซื้อขาย เพื่อเพิ่มความน่าเชื่อถือ ประกาศที่ยืนยันแล้วได้รับการติดต่อมากกว่า"}
             </p>
           </div>
@@ -129,13 +122,13 @@ export default async function EditListingPage({ params, searchParams }: PageProp
             <div className="sm:col-span-2"><SubmitButton size="sm">บันทึกเงื่อนไข</SubmitButton></div>
           </ActionForm>
 
-          {(accessRequests?.length ?? 0) > 0 && (
+          {accessRequests.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-semibold">นายหน้าที่ขอเข้าร่วม</p>
-              {accessRequests!.map((r) => (
+              {accessRequests.map((r) => (
                 <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-2 px-4 py-3 text-sm">
                   <div>
-                    <p className="font-semibold">{(r.profiles as unknown as { display_name: string } | null)?.display_name}</p>
+                    <p className="font-semibold">{r.agent_name}</p>
                     {r.message && <p className="text-xs text-subtle">{r.message}</p>}
                   </div>
                   {r.status === "pending" ? (

@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { dbError, formObject, invalid } from "@/lib/action-utils";
+import { attempt, formObject, invalid } from "@/lib/action-utils";
+import * as deals from "@/server/services/deals";
 import type { ActionResult } from "@/lib/types";
 
 function refresh() {
@@ -18,15 +18,13 @@ const leadSchema = z.object({
 });
 
 export async function updateLead(fd: FormData): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   const parsed = leadSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
   const { id, ...rest } = parsed.data;
-  const supabase = await createClient();
-  const { error } = await supabase.from("inquiries").update({ ...rest, seller_notes: rest.seller_notes ?? null }).eq("id", id);
-  if (error) return dbError(error);
+  const r = await attempt(() => deals.updateInquiry(viewer, id, rest), "บันทึกแล้ว");
   refresh();
-  return { ok: true, message: "บันทึกแล้ว" };
+  return r;
 }
 
 const apptSchema = z.object({
@@ -36,20 +34,15 @@ const apptSchema = z.object({
   meeting_url: z.url("ลิงก์วิดีโอคอลไม่ถูกต้อง").optional(),
 });
 
-/** Used by both parties; the DB guard decides which transitions each side may make. */
+/** Used by both parties; the service decides which transitions each side may make. */
 export async function updateAppointment(fd: FormData): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   const parsed = apptSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
   const { id, ...rest } = parsed.data;
-  const patch: Record<string, unknown> = { status: rest.status };
-  if (rest.seller_note !== undefined) patch.seller_note = rest.seller_note;
-  if (rest.meeting_url !== undefined) patch.meeting_url = rest.meeting_url;
-  const supabase = await createClient();
-  const { error } = await supabase.from("appointments").update(patch).eq("id", id);
-  if (error) return dbError(error);
+  const r = await attempt(() => deals.updateAppointment(viewer, id, rest));
   refresh();
-  return { ok: true };
+  return r;
 }
 
 const offerSchema = z.object({
@@ -60,14 +53,11 @@ const offerSchema = z.object({
 });
 
 export async function respondOffer(fd: FormData): Promise<ActionResult> {
-  await requireViewer();
+  const viewer = await requireViewer();
   const parsed = offerSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
   const { id, ...rest } = parsed.data;
-  if (rest.status === "countered" && !rest.counter_price) return { ok: false, error: "กรุณาระบุราคาที่ต้องการเสนอกลับ" };
-  const supabase = await createClient();
-  const { error } = await supabase.from("offers").update(rest).eq("id", id);
-  if (error) return dbError(error);
+  const r = await attempt(() => deals.respondOffer(viewer, id, rest));
   refresh();
-  return { ok: true };
+  return r;
 }

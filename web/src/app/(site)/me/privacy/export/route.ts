@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/auth";
+import { exportMyData } from "@/server/services/account";
 
 /** PDPA right of access: download everything we hold about the signed-in user. */
 export async function GET() {
-  const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  if (!claims?.claims?.sub) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const { data, error } = await supabase.rpc("export_my_data");
-  if (error) return NextResponse.json({ error: "export failed" }, { status: 500 });
+  const viewer = await getViewer();
+  if (!viewer) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const data = await exportMyData(viewer);
   return new NextResponse(JSON.stringify(data, null, 2), {
     headers: {
       "Content-Type": "application/json; charset=utf-8",

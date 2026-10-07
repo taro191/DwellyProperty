@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Check } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { listBoostProducts, listPlans } from "@/server/services/content";
 import { Alert, Badge, Card, PageHeader } from "@/components/ui";
 import { formatTHB } from "@/lib/format";
 import type { Plan } from "@/lib/types";
@@ -10,12 +10,8 @@ export const metadata: Metadata = { title: "แพ็กเกจและรา
 const AUDIENCE = { owner: "เจ้าของทรัพย์", agent: "นายหน้า & บริษัทนายหน้า", investor: "นักลงทุน" } as const;
 
 export default async function PlansPage() {
-  const supabase = await createClient();
-  const [{ data: plans }, { data: boosts }] = await Promise.all([
-    supabase.from("plans").select("*").eq("active", true).order("sort_order"),
-    supabase.from("boost_products").select("*").eq("active", true).order("sort_order"),
-  ]);
-  const byAudience = (a: Plan["audience"]) => ((plans ?? []) as Plan[]).filter((p) => p.audience === a);
+  const [plans, boosts] = await Promise.all([listPlans(), listBoostProducts()]);
+  const byAudience = (a: Plan["audience"]) => plans.filter((p) => p.audience === a);
 
   return (
     <div className="space-y-10">
@@ -48,11 +44,11 @@ export default async function PlansPage() {
         </section>
       ))}
 
-      {(boosts?.length ?? 0) > 0 && (
+      {boosts.length > 0 && (
         <section>
           <h2 className="mb-4 text-xl font-extrabold">ดันประกาศ (Boost)</h2>
           <div className="grid gap-4 md:grid-cols-4">
-            {boosts!.map((b) => (
+            {boosts.map((b) => (
               <Card key={b.id} className="p-5">
                 <p className="font-bold">{b.name}</p>
                 <p className="mt-1 text-2xl font-extrabold text-accent-strong">{formatTHB(b.price_thb)}</p>

@@ -1,38 +1,40 @@
 import "server-only";
 import { cache } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/env";
+import { eq } from "drizzle-orm";
+import { auth } from "@/server/auth";
+import { db } from "@/server/db";
+import { profiles, staff_members, user_roles } from "@/server/db/schema";
+import { isStaff, type Actor } from "@/server/services/core";
+import { isConfigured } from "@/lib/env";
 import type { AppRole, Profile, StaffRole } from "@/lib/types";
 
-export interface Viewer {
-  id: string;
+export interface Viewer extends Actor {
   email: string | null;
   profile: Profile;
-  roles: AppRole[];
-  staffRole: StaffRole | null;
 }
 
 /** Current signed-in user with profile, app roles and staff role (memoised per request). */
 export const getViewer = cache(async (): Promise<Viewer | null> => {
-  if (!isSupabaseConfigured) return null;
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const userId = data?.claims?.sub;
-  if (!userId) return null;
+  if (!isConfigured) return null;
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return null;
+  const userId = session.user.id;
 
-  const [{ data: profile }, { data: roles }, { data: staff }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", userId).single<Profile>(),
-    supabase.from("user_roles").select("role").eq("user_id", userId),
-    supabase.from("staff_members").select("role, active").eq("user_id", userId).maybeSingle(),
+  const [[profile], roles, [staff]] = await Promise.all([
+    db.select().from(profiles).where(eq(profiles.id, userId)).limit(1),
+    db.select({ role: user_roles.role }).from(user_roles).where(eq(user_roles.user_id, userId)),
+    db.select().from(staff_members).where(eq(staff_members.user_id, userId)).limit(1),
   ]);
-  if (!profile) return null;
+  if (!profile || profile.status === "deleted") return null;
 
   return {
     id: userId,
-    email: (data.claims.email as string | undefined) ?? null,
-    profile,
-    roles: (roles ?? []).map((r) => r.role as AppRole),
+    email: session.user.email,
+    status: profile.status,
+    profile: profile as unknown as Profile,
+    roles: roles.map((r) => r.role as AppRole),
     staffRole: staff?.active ? (staff.role as StaffRole) : null,
   };
 });
@@ -43,15 +45,12 @@ export async function requireViewer(next = "/"): Promise<Viewer> {
   return viewer;
 }
 
-/** Staff gate for /admin. super_admin passes every check. */
 export function hasStaffRole(viewer: Viewer | null, roles?: StaffRole[]): boolean {
-  if (!viewer?.staffRole) return false;
-  if (!roles || viewer.staffRole === "super_admin") return true;
-  return roles.includes(viewer.staffRole);
+  return isStaff(viewer, roles);
 }
 
 export async function requireStaff(roles?: StaffRole[]): Promise<Viewer> {
   const viewer = await requireViewer("/admin");
-  if (!hasStaffRole(viewer, roles)) redirect("/admin?denied=1");
+  if (!isStaff(viewer, roles)) redirect("/admin?denied=1");
   return viewer;
 }

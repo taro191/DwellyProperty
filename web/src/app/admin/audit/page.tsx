@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listAudit } from "@/server/services/admin";
 import { Card, EmptyState, Input, PageHeader, buttonClass } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 
@@ -10,16 +10,11 @@ export const metadata: Metadata = { title: "Audit log" };
 const PAGE = 100;
 
 export default async function AuditPage({ searchParams }: PageProps<"/admin/audit">) {
-  await requireStaff();
+  const viewer = await requireStaff();
   const sp = await searchParams;
   const action = typeof sp.action === "string" ? sp.action.trim().toUpperCase().replace(/[^A-Z_]/g, "") : "";
   const page = Math.max(1, Number(sp.page) || 1);
-  const supabase = await createClient();
-  let q = supabase.from("audit_logs").select("*, actor:profiles!audit_logs_actor_id_fkey(display_name)")
-    .order("created_at", { ascending: false }).range((page - 1) * PAGE, page * PAGE - 1);
-  if (action) q = q.ilike("action", `${action}%`);
-  const { data } = await q;
-  const rows = data ?? [];
+  const rows = await listAudit(viewer, action, page, PAGE);
 
   const link = (entityType: string, id: string | null) =>
     !id ? null : entityType === "properties" ? `/admin/listings/${id}` : entityType === "profiles" ? `/admin/users/${id}` : null;
@@ -48,7 +43,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
                 return (
                   <tr key={r.id} className="border-b border-line align-top last:border-0">
                     <td className="whitespace-nowrap px-4 py-2 text-xs text-subtle">{formatDateTime(r.created_at)}</td>
-                    <td className="px-4 py-2">{(r.actor as { display_name: string } | null)?.display_name ?? "system"}</td>
+                    <td className="px-4 py-2">{r.actor_name ?? "system"}</td>
                     <td className="px-4 py-2 font-mono text-xs">{r.action}</td>
                     <td className="px-4 py-2">
                       {href ? <Link href={href} className="text-accent">{r.summary ?? r.entity_id}</Link> : (r.summary ?? `${r.entity_type} ${r.entity_id ?? ""}`)}

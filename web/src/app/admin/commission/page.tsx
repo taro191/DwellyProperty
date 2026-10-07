@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { staffPartnerRequests } from "@/server/services/trust";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { formatDateTime } from "@/lib/format";
@@ -10,21 +10,8 @@ import { decidePartner } from "../actions";
 export const metadata: Metadata = { title: "Co-Agent Partner" };
 
 export default async function AdminCommissionPage() {
-  await requireStaff(["moderator"]);
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("commission_access_requests")
-    .select("*, agent:profiles!commission_access_requests_agent_id_fkey(id, display_name, is_kyc_verified)")
-    .is("property_id", null)
-    .in("status", ["pending", "approved"])
-    .order("status", { ascending: false })
-    .order("created_at");
-  const rows = data ?? [];
-  const agentIds = rows.map((r) => (r.agent as { id: string }).id);
-  const { data: profiles } = agentIds.length
-    ? await supabase.from("agent_profiles").select("user_id, license_no, license_verified, company_name").in("user_id", agentIds)
-    : { data: [] };
-  const byAgent = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+  const viewer = await requireStaff(["moderator"]);
+  const rows = await staffPartnerRequests(viewer);
 
   return (
     <div>
@@ -32,8 +19,8 @@ export default async function AdminCommissionPage() {
       {rows.length === 0 ? <EmptyState title="ไม่มีคำขอ" /> : (
         <Card className="divide-y divide-line">
           {rows.map((r) => {
-            const agent = r.agent as { id: string; display_name: string; is_kyc_verified: boolean };
-            const ap = byAgent.get(agent.id);
+            const agent = r.agent;
+            const ap = r.agent_profile;
             return (
               <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
                 <div>

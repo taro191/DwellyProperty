@@ -11,5 +11,5 @@ export function Photo({ src, alt, className, ...rest }: Omit<ImageProps, "src"> 
       </div>
     );
   }
-  return <Image src={src} alt={alt} className={cn(!className?.includes("object-") && "object-cover", className)} unoptimized={!src.startsWith("https://")} {...rest} />;
+  return <Image src={src} alt={alt} className={cn(!className?.includes("object-") && "object-cover", className)} unoptimized={src.startsWith("http://")} {...rest} />;
 }

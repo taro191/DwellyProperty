@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listHubs, listZones } from "@/server/services/content";
 import { Badge, Card, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
@@ -12,11 +12,7 @@ const HUB_STATUS = ["draft", "scheduled", "live", "ended"] as const;
 
 export default async function AdminContentPage() {
   await requireStaff(["moderator"]);
-  const supabase = await createClient();
-  const [{ data: hubs }, { data: zones }] = await Promise.all([
-    supabase.from("hubs").select("*, hub_properties(count)").order("starts_at", { ascending: false }),
-    supabase.from("zones").select("*").order("sort_order"),
-  ]);
+  const [hubs, zones] = await Promise.all([listHubs(["draft", "scheduled", "live", "ended"]), listZones(true)]);
 
   return (
     <div className="space-y-8">
@@ -24,11 +20,11 @@ export default async function AdminContentPage() {
 
       <section className="space-y-3">
         <h2 className="font-bold">Dwelly Hubs</h2>
-        {(hubs ?? []).map((h) => (
+        {hubs.map((h) => (
           <Card key={h.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
             <div>
               <p className="font-semibold">{h.name} <Badge>{h.status}</Badge></p>
-              <p className="text-xs text-subtle">/{h.slug} · {formatDate(h.starts_at)} – {formatDate(h.ends_at)} · {(h.hub_properties as { count: number }[])[0]?.count ?? 0} ทรัพย์</p>
+              <p className="text-xs text-subtle">/{h.slug} · {formatDate(h.starts_at)} – {formatDate(h.ends_at)} · {h.property_count} ทรัพย์</p>
             </div>
             <ActionForm action={setHubStatus} className="flex gap-1" showMessage={false}>
               <input type="hidden" name="id" value={h.id} />
@@ -48,7 +44,7 @@ export default async function AdminContentPage() {
             <Field label="ดึงทรัพย์จากโซน" hint="เพิ่มประกาศที่เผยแพร่ในโซนนี้เข้า Hub อัตโนมัติ">
               <Select name="zone_id" defaultValue="">
                 <option value="">ไม่ดึงอัตโนมัติ</option>
-                {(zones ?? []).map((z) => <option key={z.id} value={z.id}>{z.name_th}</option>)}
+                {zones.map((z) => <option key={z.id} value={z.id}>{z.name_th}</option>)}
               </Select>
             </Field>
             <Field label="สถานะ">
@@ -63,7 +59,7 @@ export default async function AdminContentPage() {
       <section className="space-y-3">
         <h2 className="font-bold">Zones</h2>
         <Card className="divide-y divide-line">
-          {(zones ?? []).map((z) => (
+          {zones.map((z) => (
             <div key={z.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
               <span>{z.icon} {z.name_th} <span className="text-xs text-subtle">/{z.slug}</span></span>
               <ActionForm action={toggleZone} showMessage={false}>

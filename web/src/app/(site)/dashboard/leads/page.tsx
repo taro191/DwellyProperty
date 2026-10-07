@@ -1,32 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listInquiries } from "@/server/services/deals";
 import { Badge, Card, EmptyState, PageHeader, Select, Textarea } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { INQUIRY_STATUS_LABEL, INTENT_LABEL } from "@/lib/constants";
 import { formatTHB, timeAgo } from "@/lib/format";
-import type { Inquiry, InquiryIntent, InquiryStatus } from "@/lib/types";
+import type { InquiryStatus } from "@/lib/types";
 import { updateLead } from "../../deals-actions";
 
 export const metadata: Metadata = { title: "ผู้สนใจ (Leads)" };
-
-type Row = Inquiry & { properties: { title: string; code: string } | null; buyer: { display_name: string } | null };
 
 export default async function LeadsPage({ searchParams }: PageProps<"/dashboard/leads">) {
   const viewer = await requireViewer("/dashboard/leads");
   const sp = await searchParams;
   const status = typeof sp.status === "string" && sp.status in INQUIRY_STATUS_LABEL ? (sp.status as InquiryStatus) : undefined;
-  const supabase = await createClient();
-  let q = supabase
-    .from("inquiries")
-    .select("*, properties(title, code), buyer:profiles!inquiries_buyer_id_fkey(display_name)")
-    .eq("seller_id", viewer.id)
-    .order("created_at", { ascending: false })
-    .limit(200);
-  if (status) q = q.eq("status", status);
-  const { data } = await q;
-  const leads = (data ?? []) as Row[];
+  const leads = await listInquiries(viewer, "seller", status);
 
   return (
     <div>
@@ -48,7 +37,7 @@ export default async function LeadsPage({ searchParams }: PageProps<"/dashboard/
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold">
-                    {l.buyer?.display_name} <Badge tone="accent">{INTENT_LABEL[l.intent as InquiryIntent]}</Badge>
+                    {l.party.display_name} <Badge tone="accent">{INTENT_LABEL[l.intent]}</Badge>
                   </p>
                   <Link href={`/property/${l.properties?.code}`} className="text-xs text-subtle hover:text-fg">{l.properties?.title}</Link>
                 </div>

@@ -1,5 +1,4 @@
 import type { Property, PropertyMedia } from "@/lib/types";
-import { SUPABASE_URL } from "@/lib/env";
 
 const thb = new Intl.NumberFormat("th-TH", { maximumFractionDigits: 0 });
 
@@ -38,7 +37,7 @@ export function timeAgo(iso: string | null | undefined): string {
 }
 
 export function publicStorageUrl(bucket: string, path: string) {
-  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`;
+  return `/files/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 export function mediaUrl(m: Pick<PropertyMedia, "external_url" | "storage_path">): string {

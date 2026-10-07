@@ -1,12 +1,11 @@
 # Dwelly Property — notes for Claude
 
-Real-estate platform (Thai UI). See README.md for setup/status and docs/DB-SCHEMA.md for the data model.
+Real-estate platform (Thai UI). Stack: Next.js 16 + MySQL 8 (Drizzle) + Better Auth, all in `web/`. See README.md and docs/DB-SCHEMA.md.
 
 - `design/public/dwelly.min.html` is a 1 MB minified prototype — never Read it whole; grep for specifics. Its extracted spec is in `docs/`.
-- `web/` is Next.js 16: middleware is `src/proxy.ts` (export `proxy`), request APIs (`cookies`, `params`, `searchParams`) are async, Cache Components are OFF on purpose. Read `web/AGENTS.md`.
-- Security lives in the database: RLS + guard triggers + `admin_*` RPCs. Never trust the client for status/verification/price fields; add a guard or RPC instead. Server actions re-check roles only for fast feedback.
-- Guard trigger functions must NOT be `security definer` (they rely on `current_user` via `is_privileged_role()`).
-- Schema changes: new migration file + case in `tools/db-check/check.mjs` (`npm run check`, must stay green) + update `web/src/lib/types.ts`.
-- Server actions return `ActionResult` and are used through `ActionForm` (`components/ui/form.tsx`), which uses onSubmit so React doesn't reset inputs on validation errors. Map DB errors to Thai via `dbError()` in `lib/action-utils.ts`.
-- Uploads go browser → Supabase Storage at `{uid}/...`; server actions only record paths.
-- Before committing: `cd web && npx tsc --noEmit && npx eslint src`.
+- Next.js 16: middleware is `src/proxy.ts` (export `proxy`, cookie check only), request APIs are async, Cache Components OFF; `(site)` and `admin` layouts force dynamic rendering. Read `web/AGENTS.md`.
+- **MySQL has no RLS: all authorisation lives in `src/server/services/*`.** Pages and server actions must call services, never write tables directly. Services take an `Actor`, call `requireActive`/`isStaff`, enforce state machines, and write `audit()`/`notify()` in the same transaction. Throw `AppError` with a Thai message for rule violations.
+- Server actions: validate with zod, then `attempt(() => service(...), "msg")` → `ActionResult`; used via `ActionForm` (onSubmit-based so inputs survive validation errors). Don't `redirect()` from an action to a route handler.
+- Schema change: edit `src/server/db/schema.ts` → `npm run db:generate` → add a case in `tests/services.test.ts` → update `src/lib/types.ts`.
+- Uploads: browser → `POST /api/upload` → path `{uid}/{scope}/…` → server action attaches after an ownership check. Private files are served by `/files/[bucket]/…` with per-request checks.
+- Before committing: `npm run typecheck && npm run lint && npm test` (in `web/`).

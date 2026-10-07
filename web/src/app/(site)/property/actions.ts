@@ -4,52 +4,38 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { dbError, formObject, invalid } from "@/lib/action-utils";
+import { attempt, fail, formObject, invalid } from "@/lib/action-utils";
+import * as listings from "@/server/services/listings";
+import * as deals from "@/server/services/deals";
+import { startConversation } from "@/server/services/chat";
+import { createReport } from "@/server/services/trust";
 import type { ActionResult } from "@/lib/types";
 
 const uuid = z.uuid();
 const phone = z.string().trim().regex(/^[0-9+\- ]{9,20}$/, "เบอร์โทรไม่ถูกต้อง");
 const money = (msg: string) => z.coerce.number(msg).positive(msg).max(9_999_999_999);
-
-type Ctx =
-  | { error: { ok: false; error: string } }
-  | { viewer: NonNullable<Awaited<ReturnType<typeof getViewer>>>; supabase: Awaited<ReturnType<typeof createClient>> };
-
-async function signedInClient(): Promise<Ctx> {
-  const viewer = await getViewer();
-  if (!viewer) return { error: { ok: false, error: "กรุณาเข้าสู่ระบบก่อน" } };
-  return { viewer, supabase: await createClient() };
-}
+const signInFirst: ActionResult<never> = { ok: false, error: "กรุณาเข้าสู่ระบบก่อน" };
 
 export async function toggleFavorite(propertyId: string, save: boolean): Promise<ActionResult> {
   if (!uuid.safeParse(propertyId).success) return { ok: false, error: "invalid" };
-  const ctx = await signedInClient();
-  if ("error" in ctx) return ctx.error;
-  const { viewer, supabase } = ctx;
-  const { error } = save
-    ? await supabase.from("favorites").upsert({ user_id: viewer.id, property_id: propertyId }, { ignoreDuplicates: true })
-    : await supabase.from("favorites").delete().eq("user_id", viewer.id).eq("property_id", propertyId);
-  if (error) return dbError(error);
+  const viewer = await getViewer();
+  if (!viewer) return signInFirst;
+  const r = await attempt(() => listings.setFavorite(viewer, propertyId, save));
   revalidatePath("/me/favorites");
-  return { ok: true };
+  return r;
 }
 
 export async function trackView(propertyId: string): Promise<void> {
   if (!uuid.safeParse(propertyId).success) return;
-  const supabase = await createClient();
-  await supabase.rpc("track_property_view", { p_property_id: propertyId });
+  const viewer = await getViewer();
+  await listings.trackView(propertyId, viewer?.id ?? null).catch((e) => console.error("[trackView]", e));
 }
 
 export async function revealContact(propertyId: string): Promise<ActionResult<{ name: string; phone: string | null; line_id: string | null }>> {
   if (!uuid.safeParse(propertyId).success) return { ok: false, error: "invalid" };
-  const ctx = await signedInClient();
-  if ("error" in ctx) return ctx.error;
-  const { data, error } = await ctx.supabase.rpc("reveal_listing_contact", { p_property_id: propertyId });
-  if (error) return dbError(error);
-  const row = (data as { display_name: string; phone: string | null; line_id: string | null }[])[0];
-  if (!row) return { ok: false, error: "ไม่พบข้อมูลติดต่อ" };
-  return { ok: true, data: { name: row.display_name, phone: row.phone, line_id: row.line_id } };
+  const viewer = await getViewer();
+  if (!viewer) return signInFirst;
+  return attempt(() => listings.revealContact(viewer, propertyId));
 }
 
 const inquirySchema = z.object({
@@ -63,12 +49,9 @@ const inquirySchema = z.object({
 export async function sendInquiry(fd: FormData): Promise<ActionResult> {
   const parsed = inquirySchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const ctx = await signedInClient();
-  if ("error" in ctx) return ctx.error;
-  // buyer_id / seller_id are filled by the deal_row_defaults trigger.
-  const { error } = await ctx.supabase.from("inquiries").insert({ ...parsed.data, buyer_id: ctx.viewer.id, seller_id: ctx.viewer.id });
-  if (error) return dbError(error);
-  return { ok: true, message: "ส่งข้อความถึงผู้ขายแล้ว ผู้ขายจะติดต่อกลับโดยเร็ว" };
+  const viewer = await getViewer();
+  if (!viewer) return signInFirst;
+  return attempt(() => deals.createInquiry(viewer, parsed.data), "ส่งข้อความถึงผู้ขายแล้ว ผู้ขายจะติดต่อกลับโดยเร็ว");
 }
 
 const appointmentSchema = z.object({
@@ -82,17 +65,14 @@ const appointmentSchema = z.object({
 export async function requestAppointment(fd: FormData): Promise<ActionResult> {
   const parsed = appointmentSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const ctx = await signedInClient();
-  if ("error" in ctx) return ctx.error;
-  const { property_id, format, date, time, buyer_note } = parsed.data;
+  const viewer = await getViewer();
+  if (!viewer) return signInFirst;
+  const { date, time, ...rest } = parsed.data;
   const scheduledAt = new Date(`${date}T${time}:00+07:00`); // Asia/Bangkok
   if (Number.isNaN(scheduledAt.getTime())) return { ok: false, error: "วันเวลาไม่ถูกต้อง" };
-  const { error } = await ctx.supabase.from("appointments").insert({
-    property_id, format, buyer_note, scheduled_at: scheduledAt.toISOString(), buyer_id: ctx.viewer.id, seller_id: ctx.viewer.id,
-  });
-  if (error) return dbError(error);
+  const r = await attempt(() => deals.createAppointment(viewer, { ...rest, scheduled_at: scheduledAt.toISOString() }), "ส่งคำขอนัดชมแล้ว รอผู้ขายยืนยัน");
   revalidatePath("/me/activity");
-  return { ok: true, message: "ส่งคำขอนัดชมแล้ว รอผู้ขายยืนยัน" };
+  return r;
 }
 
 const offerSchema = z.object({
@@ -106,19 +86,11 @@ const offerSchema = z.object({
 export async function makeOffer(fd: FormData): Promise<ActionResult> {
   const parsed = offerSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const ctx = await signedInClient();
-  if ("error" in ctx) return ctx.error;
-  const { valid_days, ...rest } = parsed.data;
-  const { error } = await ctx.supabase.from("offers").insert({
-    ...rest,
-    listed_price: 0, // replaced from the listing by trigger
-    valid_until: new Date(Date.now() + valid_days * 86_400_000 + 60_000).toISOString(),
-    buyer_id: ctx.viewer.id,
-    seller_id: ctx.viewer.id,
-  });
-  if (error) return dbError(error);
+  const viewer = await getViewer();
+  if (!viewer) return signInFirst;
+  const r = await attempt(() => deals.createOffer(viewer, parsed.data), "ยื่นข้อเสนอแล้ว ติดตามสถานะได้ที่ “นัดหมายและข้อเสนอของฉัน”");
   revalidatePath("/me/activity");
-  return { ok: true, message: "ยื่นข้อเสนอแล้ว ติดตามสถานะได้ที่ “นัดหมายและข้อเสนอของฉัน”" };
+  return r;
 }
 
 export async function startChat(fd: FormData): Promise<void> {
@@ -126,13 +98,14 @@ export async function startChat(fd: FormData): Promise<void> {
   if (!uuid.safeParse(propertyId).success) redirect("/messages");
   const viewer = await getViewer();
   if (!viewer) redirect("/login?next=/messages");
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("start_conversation", { p_property_id: propertyId });
-  if (error) {
-    console.error("[startChat]", error.message);
+  let id: string;
+  try {
+    id = await startConversation(viewer, propertyId as string);
+  } catch (e) {
+    fail(e);
     redirect("/messages?error=start");
   }
-  redirect(`/messages/${data}`);
+  redirect(`/messages/${id}`);
 }
 
 const reportSchema = z.object({
@@ -145,9 +118,7 @@ const reportSchema = z.object({
 export async function submitReport(fd: FormData): Promise<ActionResult> {
   const parsed = reportSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const ctx = await signedInClient();
-  if ("error" in ctx) return ctx.error;
-  const { error } = await ctx.supabase.from("reports").insert(parsed.data);
-  if (error) return dbError(error);
-  return { ok: true, message: "ขอบคุณที่แจ้ง ทีมงานจะตรวจสอบภายใน 24 ชั่วโมง" };
+  const viewer = await getViewer();
+  if (!viewer) return signInFirst;
+  return attempt(() => createReport(viewer, parsed.data), "ขอบคุณที่แจ้ง ทีมงานจะตรวจสอบภายใน 24 ชั่วโมง");
 }

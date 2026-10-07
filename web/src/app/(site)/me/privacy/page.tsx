@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { latestConsents, openDeletionRequest } from "@/server/services/account";
 import { Alert, Card, Field, Input, PageHeader, Textarea, buttonClass } from "@/components/ui";
 import { ActionForm, SubmitButton } from "@/components/ui/form";
 import { formatDateTime } from "@/lib/format";
@@ -10,13 +10,7 @@ export const metadata: Metadata = { title: "ความเป็นส่วน
 
 export default async function PrivacyPage() {
   const viewer = await requireViewer("/me/privacy");
-  const supabase = await createClient();
-  const [{ data: consents }, { data: deletion }] = await Promise.all([
-    supabase.rpc("my_consents"),
-    supabase.from("account_deletion_requests").select("status, requested_at").eq("user_id", viewer.id)
-      .in("status", ["pending", "processing"]).maybeSingle(),
-  ]);
-  const latest = Object.fromEntries(((consents ?? []) as { kind: string; granted: boolean; created_at: string }[]).map((c) => [c.kind, c]));
+  const [latest, deletion] = await Promise.all([latestConsents(viewer), openDeletionRequest(viewer)]);
   const marketing = latest.marketing?.granted ?? false;
 
   return (

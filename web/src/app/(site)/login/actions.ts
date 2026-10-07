@@ -3,31 +3,31 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { APIError } from "better-auth/api";
+import { eq } from "drizzle-orm";
+import { auth } from "@/server/auth";
+import { db } from "@/server/db";
+import { profiles } from "@/server/db/schema";
 import { formObject, invalid } from "@/lib/action-utils";
-import { SITE_URL } from "@/lib/env";
 import type { ActionResult } from "@/lib/types";
 
 const safeNext = (next: unknown) =>
   typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
-async function origin() {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  return host ? `${proto}://${host}` : SITE_URL;
+const afterLogin = (next: string) => `/auth/after?next=${encodeURIComponent(next)}`;
+
+/** Where a freshly signed-in user should land (server actions cannot follow a route-handler redirect). */
+async function landing(userId: string, next: string) {
+  const [p] = await db.select({ onboarded_at: profiles.onboarded_at }).from(profiles).where(eq(profiles.id, userId)).limit(1);
+  return p?.onboarded_at ? next : `/welcome?next=${encodeURIComponent(next)}`;
 }
 
-/** After any successful sign-in: first-timers go through onboarding (consent + role). */
-async function postLoginRedirect(next: string): Promise<never> {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const uid = data?.claims?.sub;
-  if (uid) {
-    const { data: profile } = await supabase.from("profiles").select("onboarded_at").eq("id", uid).single();
-    if (!profile?.onboarded_at) redirect(`/welcome?next=${encodeURIComponent(next)}`);
+function authError(e: unknown, fallback: string): ActionResult<never> {
+  if (e instanceof APIError) {
+    if (e.status === "TOO_MANY_REQUESTS") return { ok: false, error: "ลองบ่อยเกินไป กรุณารอสักครู่" };
+    return { ok: false, error: fallback };
   }
-  redirect(next);
+  throw e;
 }
 
 const emailSchema = z.object({ email: z.email("อีเมลไม่ถูกต้อง"), next: z.string().optional() });
@@ -35,34 +35,26 @@ const emailSchema = z.object({ email: z.email("อีเมลไม่ถูก
 export async function sendEmailOtp(fd: FormData): Promise<ActionResult<{ email: string }>> {
   const parsed = emailSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithOtp({
-    email: parsed.data.email,
-    options: {
-      shouldCreateUser: true,
-      emailRedirectTo: `${await origin()}/auth/confirm?next=${encodeURIComponent(safeNext(parsed.data.next))}`,
-    },
-  });
-  if (error) {
-    console.error("[auth] otp", error.message);
-    return { ok: false, error: error.status === 429 ? "ขอรหัสบ่อยเกินไป กรุณารอสักครู่" : "ส่งรหัสไม่สำเร็จ กรุณาลองใหม่" };
+  try {
+    await auth.api.sendVerificationOTP({ body: { email: parsed.data.email.toLowerCase(), type: "sign-in" } });
+  } catch (e) {
+    return authError(e, "ส่งรหัสไม่สำเร็จ กรุณาลองใหม่");
   }
-  return { ok: true, data: { email: parsed.data.email }, message: "ส่งรหัส 6 หลักไปที่อีเมลแล้ว (หรือกดลิงก์ในอีเมล)" };
+  return { ok: true, data: { email: parsed.data.email.toLowerCase() }, message: "ส่งรหัส 6 หลักไปที่อีเมลแล้ว" };
 }
 
-const otpSchema = z.object({
-  email: z.email(),
-  token: z.string().regex(/^\d{6}$/, "กรอกรหัส 6 หลัก"),
-  next: z.string().optional(),
-});
+const otpSchema = z.object({ email: z.email(), token: z.string().regex(/^\d{6}$/, "กรอกรหัส 6 หลัก"), next: z.string().optional() });
 
 export async function verifyEmailOtp(fd: FormData): Promise<ActionResult> {
   const parsed = otpSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({ email: parsed.data.email, token: parsed.data.token, type: "email" });
-  if (error) return { ok: false, error: "รหัสไม่ถูกต้องหรือหมดอายุ" };
-  return postLoginRedirect(safeNext(parsed.data.next));
+  let userId: string;
+  try {
+    userId = (await auth.api.signInEmailOTP({ body: { email: parsed.data.email, otp: parsed.data.token }, headers: await headers() })).user.id;
+  } catch (e) {
+    return authError(e, "รหัสไม่ถูกต้องหรือหมดอายุ");
+  }
+  redirect(await landing(userId, safeNext(parsed.data.next)));
 }
 
 const passwordSchema = z.object({
@@ -74,25 +66,29 @@ const passwordSchema = z.object({
 export async function signInWithPassword(fd: FormData): Promise<ActionResult> {
   const parsed = passwordSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
-  if (error) return { ok: false, error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" };
-  return postLoginRedirect(safeNext(parsed.data.next));
+  let userId: string;
+  try {
+    userId = (await auth.api.signInEmail({ body: { email: parsed.data.email.toLowerCase(), password: parsed.data.password }, headers: await headers() })).user.id;
+  } catch (e) {
+    return authError(e, "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+  }
+  redirect(await landing(userId, safeNext(parsed.data.next)));
 }
 
-export async function signInWithGoogle(fd: FormData): Promise<void> {
+export async function signInWithProvider(fd: FormData): Promise<void> {
   const next = safeNext(fd.get("next"));
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: `${await origin()}/auth/callback?next=${encodeURIComponent(next)}` },
-  });
-  if (error || !data.url) redirect(`/login?error=oauth&next=${encodeURIComponent(next)}`);
-  redirect(data.url);
+  const provider = fd.get("provider") === "line" ? "line" : "google";
+  let url: string | undefined;
+  try {
+    const res = await auth.api.signInSocial({ body: { provider, callbackURL: afterLogin(next), errorCallbackURL: `/login?error=oauth` } });
+    url = res.url;
+  } catch (e) {
+    console.error("[auth] social", e);
+  }
+  redirect(url ?? `/login?error=oauth&next=${encodeURIComponent(next)}`);
 }
 
 export async function signOut(): Promise<void> {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  await auth.api.signOut({ headers: await headers() });
   redirect("/");
 }

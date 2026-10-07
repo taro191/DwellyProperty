@@ -3,16 +3,28 @@
 import { useState } from "react";
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
 import { Field, Input, cn } from "@/components/ui";
-import { sendEmailOtp, signInWithGoogle, signInWithPassword, verifyEmailOtp } from "./actions";
+import { sendEmailOtp, signInWithPassword, signInWithProvider, verifyEmailOtp } from "./actions";
 
-export function LoginForms({ next }: { next: string }) {
+export function LoginForms({ next, providers }: { next: string; providers: { google: boolean; line: boolean } }) {
   const [mode, setMode] = useState<"otp" | "password">("otp");
   const [otpEmail, setOtpEmail] = useState<string | null>(null);
 
   return (
     <div className="mt-6 space-y-5">
-      <form action={signInWithGoogle}>
+      {providers.line && (
+        <form action={signInWithProvider}>
+          <input type="hidden" name="next" value={next} />
+          <input type="hidden" name="provider" value="line" />
+          <button className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#06C755] font-semibold text-white hover:bg-[#05b34c]">
+            <span className="rounded-md bg-white px-1.5 text-xs font-black text-[#06C755]">LINE</span>
+            เข้าสู่ระบบด้วย LINE
+          </button>
+        </form>
+      )}
+      {providers.google && (
+      <form action={signInWithProvider}>
         <input type="hidden" name="next" value={next} />
+        <input type="hidden" name="provider" value="google" />
         <button className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-line bg-white font-semibold text-gray-900 hover:bg-gray-100">
           <svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden>
             <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
@@ -23,10 +35,13 @@ export function LoginForms({ next }: { next: string }) {
           เข้าสู่ระบบด้วย Google
         </button>
       </form>
+      )}
 
-      <div className="flex items-center gap-3 text-xs text-subtle">
-        <span className="h-px flex-1 bg-line" /> หรือใช้อีเมล <span className="h-px flex-1 bg-line" />
-      </div>
+      {(providers.google || providers.line) && (
+        <div className="flex items-center gap-3 text-xs text-subtle">
+          <span className="h-px flex-1 bg-line" /> หรือใช้อีเมล <span className="h-px flex-1 bg-line" />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1 text-sm">
         {(["otp", "password"] as const).map((m) => (

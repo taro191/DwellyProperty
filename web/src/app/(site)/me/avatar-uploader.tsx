@@ -3,11 +3,11 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { uploadFile } from "@/lib/upload";
 import { Avatar } from "@/components/avatar";
 import { setAvatar } from "./actions";
 
-export function AvatarUploader({ userId, name, src }: { userId: string; name: string; src: string | null }) {
+export function AvatarUploader({ name, src }: { name: string; src: string | null }) {
   const input = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -18,10 +18,7 @@ export function AvatarUploader({ userId, name, src }: { userId: string; name: st
     setError(null);
     try {
       if (file.size > 2 * 1024 * 1024) throw new Error("ไฟล์ใหญ่เกิน 2MB");
-      const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-      const path = `${userId}/avatar.${ext}`;
-      const { error: upErr } = await createClient().storage.from("avatars").upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) throw new Error(upErr.message);
+      const path = await uploadFile("avatars", "avatar", file, file.name);
       const res = await setAvatar(path);
       if (!res.ok) throw new Error(res.error);
       router.refresh();

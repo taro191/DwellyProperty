@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { List, Map as MapIcon } from "lucide-react";
 import { getViewer } from "@/lib/auth";
-import { PAGE_SIZE, getFavoriteIds, getZones, parseFilters, searchProperties } from "@/lib/queries";
+import { PAGE_SIZE, parseFilters } from "@/lib/queries";
+import { favoriteIds, searchListings } from "@/server/services/listings";
+import { listZones } from "@/server/services/content";
 import { PropertyGrid } from "@/components/property-card";
 import { ListingsMap, type MapPoint } from "@/components/map";
 import { EmptyState, Input, Select, buttonClass, cn } from "@/components/ui";
@@ -18,9 +20,9 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   const viewer = await getViewer();
 
   const [{ items, total }, zones, favorites] = await Promise.all([
-    searchProperties(filters, view === "map" ? { limit: 300, mapOnly: true } : {}),
-    getZones(),
-    getFavoriteIds(viewer?.id),
+    searchListings(filters, view === "map" ? { limit: 300, mapOnly: true } : {}),
+    listZones(),
+    favoriteIds(viewer?.id),
   ]);
 
   const qs = (patch: Record<string, string | undefined>) => {

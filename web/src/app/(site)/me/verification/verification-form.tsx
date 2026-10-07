@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { uploadFile } from "@/lib/upload";
 import { Alert, Button, Field, Input, Select } from "@/components/ui";
 import { VERIFICATION_KIND_LABEL } from "@/lib/constants";
 import type { VerificationKind } from "@/lib/types";
@@ -22,8 +22,8 @@ const DOCS: Record<VerificationKind, { type: string; label: string; required: bo
 };
 
 export function VerificationForm({
-  userId, defaultKind, defaultProperty, listings, kycDone,
-}: { userId: string; defaultKind: VerificationKind; defaultProperty?: string; listings: { id: string; label: string }[]; kycDone: boolean }) {
+  defaultKind, defaultProperty, listings, kycDone,
+}: { defaultKind: VerificationKind; defaultProperty?: string; listings: { id: string; label: string }[]; kycDone: boolean }) {
   const router = useRouter();
   const [kind, setKind] = useState<VerificationKind>(kycDone && defaultKind === "identity" ? "property_ownership" : defaultKind);
   const [busy, setBusy] = useState(false);
@@ -47,12 +47,10 @@ export function VerificationForm({
       const created = await createVerificationRequest(fields);
       if (!created.ok) throw new Error(created.error);
       const requestId = created.data!.id;
-      const supabase = createClient();
       for (const f of files) {
-        const ext = f.file!.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-        const path = `${userId}/${requestId}/${f.type}-${crypto.randomUUID()}.${ext}`;
-        const { error } = await supabase.storage.from("verification-docs").upload(path, f.file!, { contentType: f.file!.type });
-        if (error) throw new Error(`อัปโหลด ${f.label} ไม่สำเร็จ`);
+        const path = await uploadFile("verification-docs", requestId, f.file!, f.file!.name).catch(() => {
+          throw new Error(`อัปโหลด ${f.label} ไม่สำเร็จ`);
+        });
         const attached = await attachVerificationDoc(requestId, f.type, path);
         if (!attached.ok) throw new Error(attached.error);
       }

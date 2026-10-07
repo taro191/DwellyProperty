@@ -1,22 +1,14 @@
 import type { Metadata } from "next";
 import { requireViewer } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { LISTING_SELECT } from "@/lib/queries";
+import { listFavorites } from "@/server/services/listings";
 import { PropertyGrid } from "@/components/property-card";
 import { ButtonLink, EmptyState, PageHeader } from "@/components/ui";
-import type { PropertyWithMedia } from "@/lib/types";
 
 export const metadata: Metadata = { title: "ทรัพย์ที่บันทึกไว้" };
 
 export default async function FavoritesPage() {
   const viewer = await requireViewer("/me/favorites");
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("favorites")
-    .select(`created_at, properties(${LISTING_SELECT})`)
-    .eq("user_id", viewer.id)
-    .order("created_at", { ascending: false });
-  const items = (data ?? []).map((f) => f.properties as unknown as PropertyWithMedia).filter(Boolean);
+  const items = await listFavorites(viewer);
 
   return (
     <div>

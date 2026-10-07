@@ -1,5 +1,5 @@
-// Row types mirroring supabase/migrations (hand-maintained; regenerate with
-// `npx supabase gen types typescript` once a project is linked).
+// Row types used by pages/components. They mirror src/server/db/schema.ts (snake_case
+// app tables); keep both in sync when the schema changes.
 
 export type AppRole = "buyer" | "tenant" | "owner" | "investor" | "agent";
 export type StaffRole = "super_admin" | "moderator" | "verifier" | "support" | "finance";
@@ -51,6 +51,7 @@ export interface Zone {
   name_en: string | null;
   icon: string | null;
   description: string | null;
+  active: boolean;
 }
 
 export interface LandDetails {
@@ -248,6 +249,6 @@ export interface Plan {
 }
 
 /** Standard result for server actions consumed by forms. */
-export type ActionResult<T = undefined> =
+export type ActionResult<T = unknown> =
   | { ok: true; data?: T; message?: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string[]> };

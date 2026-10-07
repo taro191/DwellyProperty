@@ -1,93 +1,88 @@
 # Dwelly Property
 
 แพลตฟอร์มอสังหาริมทรัพย์ (ซื้อ / ขาย / เช่า / ที่ดิน) ที่เน้นประกาศที่ตรวจสอบแล้ว พร้อมระบบหลังบ้านสำหรับทีมงาน
+**Stack:** Node.js 20.9+ · Next.js 16 · MySQL 8 · Drizzle ORM · Better Auth
 
 | โฟลเดอร์ | เนื้อหา |
 |---|---|
 | `design/` | ต้นแบบจาก Figma Make (`public/dwelly.min.html`) ใช้เป็น reference เท่านั้น |
-| `docs/` | `SPEC.md` (สเปกจาก design), `GAP-ANALYSIS.md`, `DB-SCHEMA.md`, `design-schema.json` |
-| `supabase/` | migrations (Postgres + RLS + RPC), `seed.sql` (ข้อมูลตัวอย่าง), `config.toml` |
-| `tools/db-check/` | ทดสอบ migrations และ RLS บน PGlite (ไม่ต้องใช้ Docker) |
-| `web/` | แอป Next.js 16 (App Router, Tailwind v4, Supabase SSR) ทั้งหน้าเว็บผู้ใช้และ `/admin` |
+| `docs/` | `SPEC.md` (สเปกจาก design), `GAP-ANALYSIS.md`, `DB-SCHEMA.md` (ฐานข้อมูลและโมเดลความปลอดภัย) |
+| `web/` | แอปทั้งหมด ทั้งหน้าเว็บผู้ใช้, ศูนย์ผู้ขาย และ `/admin` |
+| `web/src/server/` | ฐานข้อมูล (`db/`), auth, storage และ business rules (`services/`) |
+| `web/drizzle/` | SQL migrations |
 
-## เริ่มต้นใช้งาน (development)
+## ติดตั้งบน host (production)
 
-ต้องมี Node.js 20.9 ขึ้นไป (ทดสอบกับ v24)
-
-### 1. สร้างฐานข้อมูล Supabase
-
-**ทางเลือก A — Supabase Cloud (ไม่ต้องใช้ Docker)**
-1. สร้างโปรเจกต์ที่ https://supabase.com/dashboard (เลือก region Singapore)
-2. เชื่อมโปรเจกต์และ push schema:
+1. สร้างฐานข้อมูล MySQL 8.0 ขึ้นไป ใช้ charset `utf8mb4` และสร้าง user ให้แอป
+2. ตั้งค่าแอป:
    ```bash
-   npx supabase login
-   npx supabase link --project-ref <project-ref>
-   npx supabase db push            # รัน supabase/migrations ทั้งหมด
+   cd web
+   cp .env.example .env.local   # ใส่ DATABASE_URL, BETTER_AUTH_SECRET, NEXT_PUBLIC_SITE_URL, SMTP_*
+   npm ci
+   npm run db:migrate           # สร้างตารางทั้งหมด
+   npm run build
+   npm start                    # รันที่พอร์ต 3000 (ตั้ง PORT ได้) แล้วให้ nginx หรือ panel ของ host proxy เข้ามา
    ```
-3. (ถ้าต้องการข้อมูลตัวอย่าง) เปิด SQL Editor แล้วรันไฟล์ `supabase/seed.sql`
-   **ห้ามรัน seed บน production** เพราะจะสร้างบัญชีทดสอบที่ใช้รหัสผ่านเดียวกันทั้งหมด
+3. ตั้ง cron ทุกชั่วโมง: `cd /path/to/web && npm run maintenance`
+4. backup ทั้งฐานข้อมูลและโฟลเดอร์ `STORAGE_DIR` (รูปและเอกสาร)
+5. **สร้าง admin คนแรก:** สมัครสมาชิกผ่านเว็บ แล้วรัน SQL นี้
+   `INSERT INTO staff_members (user_id, role, active, created_at, updated_at) SELECT id, 'super_admin', 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) FROM user WHERE email = 'you@example.com';`
 
-**ทางเลือก B — Local (ต้องมี Docker Desktop)**
-```bash
-npx supabase start     # รัน migrations + seed ให้อัตโนมัติ
-```
+ข้อควรระวัง:
+- **รันเป็นโปรเซสเดียว:** แชท realtime ใช้ event bus ภายในโปรเซส ถ้าจะใช้ cluster/PM2 หลาย instance ต้องเปลี่ยนเป็น Redis
+- **nginx:** ถ้าอยู่หลัง nginx ให้ปิด buffering ของ `/api/chat/` (แอปส่ง header `X-Accel-Buffering: no` ให้แล้ว)
+- **ขนาดไฟล์อัปโหลด:** ตั้ง `client_max_body_size` อย่างน้อย 12M
 
-### 2. ตั้งค่า Auth (Supabase Dashboard → Authentication)
-- **URL Configuration**: Site URL = `http://localhost:3000` และเพิ่ม Redirect URL `http://localhost:3000/**`
-- **Email**: เปิด Email provider ไว้ ระบบรองรับทั้งรหัส OTP 6 หลักและ magic link
-  ถ้าต้องการให้อีเมลแสดงรหัส ให้ใส่ `{{ .Token }}` ใน template "Magic Link"
-- **Google** (ไม่บังคับ): เปิด provider แล้วใส่ Client ID/Secret จาก Google Cloud Console
-- **pg_cron** (Database → Extensions): เปิดแล้วรัน
-  `select cron.schedule('dwelly-maintenance', '7 * * * *', 'select public.run_maintenance()');`
-  เพื่อให้ประกาศและข้อเสนอหมดอายุอัตโนมัติ
+### Login
+- **อีเมล + รหัส OTP:** ต้องตั้ง SMTP ถ้าไม่ตั้ง รหัสจะพิมพ์ใน log ของ server (ใช้ได้เฉพาะตอน dev)
+- **Google:** สร้าง OAuth client โดยใช้ callback `{SITE_URL}/api/auth/callback/google`
+- **LINE Login:** สร้าง channel ที่ LINE Developers โดยใช้ callback `{SITE_URL}/api/auth/callback/line` ต้องขอสิทธิ์ email ถ้าต้องการอีเมลจริง (ถ้าไม่มีสิทธิ์ ระบบจะใช้อีเมลสำรองให้)
+- ปุ่ม Google/LINE จะแสดงเฉพาะเมื่อใส่ค่าใน `.env.local` แล้ว
 
-### 3. รันเว็บ
+## พัฒนาบนเครื่องตัวเอง (ไม่ต้องติดตั้ง MySQL)
+
 ```bash
 cd web
-cp .env.example .env.local      # ใส่ URL และ publishable key จาก Project Settings → API Keys
 npm install
-npm run dev                     # http://localhost:3000
+npm run dev:db        # ดาวน์โหลด MySQL ชั่วคราว + migrate + seed แล้วพิมพ์ DATABASE_URL (ข้อมูลหายเมื่อปิด)
+# ใส่ DATABASE_URL ที่ได้ และ BETTER_AUTH_SECRET ใน .env.local แล้วเปิดอีก terminal:
+npm run dev           # http://localhost:3000
 ```
-ถ้ายังไม่ได้ใส่ค่าใน `.env.local` ทุกหน้าจะแสดงหน้าคำแนะนำการตั้งค่า
+ถ้ามี MySQL อยู่แล้ว ใช้ `npm run db:migrate && npm run db:seed` แทน (**ห้ามรัน seed บน production**)
 
-### บัญชีทดสอบ (มีเมื่อรัน seed.sql)
-รหัสผ่านทุกบัญชีคือ `Dwelly@1234` ให้เข้าสู่ระบบด้วยแท็บ "รหัสผ่าน"
+**บัญชีทดสอบจาก seed:** รหัสผ่านทุกบัญชีคือ `Dwelly@1234` (ล็อกอินด้วยแท็บ "รหัสผ่าน")
 
 | อีเมล | บทบาท |
 |---|---|
-| `admin@dwelly.local` | Super Admin (เข้า `/admin` ได้ทุกเมนู) |
-| `moderator@dwelly.local` | Moderator (ตรวจประกาศ, รายงาน, Hubs) |
-| `owner@dwelly.local`, `owner2@dwelly.local` | เจ้าของทรัพย์ (มีประกาศจาก design) |
-| `agent@dwelly.local` | นายหน้า (หัวหน้า Pod, ใบอนุญาตยืนยันแล้ว) |
+| `admin@dwelly.local` | Super Admin (`/admin` ทุกเมนู) |
+| `moderator@dwelly.local` | Moderator |
+| `owner@dwelly.local`, `owner2@dwelly.local` | เจ้าของทรัพย์ |
+| `agent@dwelly.local` | นายหน้า (หัวหน้า Pod) |
 | `buyer@dwelly.local` | ผู้ซื้อ |
 
-## คำสั่งที่ใช้บ่อย
-```bash
-cd tools/db-check && npm install && npm run check   # ทดสอบ migrations + RLS (55 เคส)
-cd web && npx tsc --noEmit && npx eslint src         # type check + lint
-cd web && npm run build                              # production build
-```
-เมื่อแก้ schema ให้สร้างไฟล์ใหม่ใน `supabase/migrations/` (ห้ามแก้ไฟล์ที่ push ไปแล้ว) เพิ่มเคสทดสอบใน `tools/db-check/check.mjs` และอัปเดต `web/src/lib/types.ts`
+## คำสั่ง
+
+| คำสั่ง | ใช้ทำอะไร |
+|---|---|
+| `npm run typecheck && npm run lint` | ตรวจ type และ lint |
+| `npm test` | ทดสอบ business rules บน MySQL จริง 24 เคส (ครั้งแรกจะดาวน์โหลด MySQL) |
+| `npm run db:generate` | สร้าง migration ใหม่หลังแก้ `src/server/db/schema.ts` |
+| `npm run db:migrate` | รัน migrations |
+| `npm run maintenance` | งานรายชั่วโมง |
 
 ## สถานะ (2026-10-07)
 
-**เสร็จแล้ว**
-- ฐานข้อมูล 40 ตาราง พร้อม RLS ทุกตาราง, state machine ของประกาศ/ข้อเสนอ/นัดหมาย, audit log, PDPA (consent, export, ลบบัญชี)
-- เว็บผู้ใช้:
-  - ล็อกอิน Google / OTP อีเมล / รหัสผ่าน, onboarding พร้อม consent
-  - ค้นหา + ตัวกรอง + แผนที่, หน้ารายละเอียดทรัพย์ (SEO, JSON-LD, sitemap)
-  - บันทึกทรัพย์, สอบถาม, นัดชม, ยื่นข้อเสนอ/เสนอราคากลับ, แชท realtime, แจ้งเตือน, รายงานประกาศ
-- ศูนย์ผู้ขาย:
-  - ลงประกาศ/แก้ไข, อัปโหลดรูป (ย่อขนาดในเบราว์เซอร์), ปักหมุดแผนที่, ขั้นตอนสถานะประกาศ
-  - จัดการ leads / นัดหมาย / ข้อเสนอ, Co-Agent commission, โปรไฟล์นายหน้า, Agency Pod
-- ยืนยันตัวตน: ส่งเอกสาร KYC / ใบอนุญาตนายหน้า / โฉนด ไปเก็บใน private storage
-- Admin (`/admin`): ตรวจประกาศ, ตรวจเอกสาร, รายงาน, ผู้ใช้ (ระงับ/แบน), Pods, Co-Agent partner, Hubs/Zones, คำขอลบบัญชี, audit log, จัดการทีมงาน (RBAC 5 บทบาท)
+**เสร็จแล้ว** (ทดสอบ end-to-end บน MySQL 8.4 แล้ว)
+- **ล็อกอิน:** อีเมล OTP, รหัสผ่าน, Google, LINE และ onboarding พร้อม consent PDPA
+- **ฝั่งผู้ซื้อ:** ค้นหา + ตัวกรอง + แผนที่, หน้าประกาศ (SEO), บันทึกทรัพย์, สอบถาม, นัดชม, ยื่นข้อเสนอ/ต่อรองราคา, แชท realtime, แจ้งเตือน, รายงานประกาศ
+- **ศูนย์ผู้ขาย:** ลงประกาศ, อัปโหลดรูป, ขั้นตอนสถานะ, leads, นัดหมาย, ข้อเสนอ, Co-Agent commission, นายหน้า/Pod
+- **ยืนยันตัวตน:** ส่งเอกสาร KYC / ใบอนุญาตนายหน้า / โฉนด
+- **Admin:** ตรวจประกาศ, ตรวจเอกสาร, รายงานปัญหา, ผู้ใช้, Pods, Partner, Hubs/Zones, ลบบัญชี (PDPA), audit log, ทีมงาน
 
-**ยังไม่ได้ทำ / ต้องตัดสินใจ**
-- **LINE Login**: Supabase ไม่มี LINE เป็น provider ในตัว ต้องทำเป็น custom OIDC หรือ Edge Function
-- **ระบบชำระเงิน**: schema และ `create_order` / `fulfill_order` พร้อมแล้ว แต่ยังไม่ได้เลือกผู้ให้บริการ (Omise / 2C2P / PromptPay) และยังไม่มีหน้า checkout หรือ webhook
-- **แจ้งเตือนนอกแอป** (LINE OA / email / push): ต่อจากตาราง `notifications` ด้วย Database Webhook + Edge Function
-- **ค้นหา**: ยังไม่มีการตัดคำภาษาไทย และยังไม่ค้นหาตามรัศมี (PostGIS)
-- **ข้อความทางกฎหมาย**: ข้อกำหนด/นโยบายใน `/legal/*` เป็นฉบับร่าง ต้องให้ทนายตรวจก่อนเปิดใช้
-- **แผนที่**: tile ของ OpenStreetMap ใช้ได้เฉพาะช่วงพัฒนา production ควรใช้ผู้ให้บริการเชิงพาณิชย์ (`NEXT_PUBLIC_MAP_TILE_URL`)
-- **Investor tools** (พอร์ต, yield) และหน้า "เปรียบเทียบทรัพย์" ตาม design
+**ยังไม่ได้ทำ**
+- **ระบบชำระเงิน:** มี `services/billing.ts` แล้ว แต่ยังต้องเลือกผู้ให้บริการ (Omise / 2C2P) แล้วทำหน้า checkout และ webhook
+- **แจ้งเตือนนอกแอป:** ทาง LINE OA / email
+- **ค้นหาภาษาไทย:** ยังไม่มีการตัดคำและการค้นหาตามรัศมี
+- **ข้อความทางกฎหมาย:** `/legal/*` เป็นฉบับร่าง ต้องให้ทนายตรวจ
+- **แผนที่:** production ควรใช้ tile เชิงพาณิชย์ (`NEXT_PUBLIC_MAP_TILE_URL`)
+- **ฟีเจอร์อื่นตาม design:** Investor tools และหน้าเปรียบเทียบทรัพย์

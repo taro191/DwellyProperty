@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { dashboardStats } from "@/server/services/admin";
 import { Alert, Card, PageHeader } from "@/components/ui";
 import { CATEGORY_LABEL } from "@/lib/constants";
 import { formatTHB } from "@/lib/format";
@@ -22,11 +22,9 @@ interface Stats {
 }
 
 export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
-  await requireStaff();
+  const viewer = await requireStaff();
   const sp = await searchParams;
-  const supabase = await createClient();
-  const { data } = await supabase.rpc("admin_dashboard_stats");
-  const s = data as Stats | null;
+  const s: Stats = await dashboardStats(viewer);
 
   const queues = s
     ? [
