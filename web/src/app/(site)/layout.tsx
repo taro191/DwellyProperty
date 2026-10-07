@@ -1,11 +1,8 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/site-header";
 import { BottomNav } from "@/components/bottom-nav";
-import { SetupNotice } from "@/components/setup-notice";
-import { isSupabaseConfigured } from "@/lib/env";
 
 export default function SiteLayout({ children }: LayoutProps<"/">) {
-  if (!isSupabaseConfigured) return <SetupNotice />;
   return (
     <>
       <SiteHeader />

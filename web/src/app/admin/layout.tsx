@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getViewer } from "@/lib/auth";
-import { isSupabaseConfigured } from "@/lib/env";
-import { SetupNotice } from "@/components/setup-notice";
 import { Logo } from "@/components/site-header";
 import { AdminNav } from "./admin-nav";
 import { STAFF_ROLE_LABEL } from "@/lib/constants";
@@ -10,7 +8,6 @@ import { STAFF_ROLE_LABEL } from "@/lib/constants";
 export const metadata: Metadata = { title: { default: "Admin", template: "%s · Dwelly Admin" }, robots: { index: false } };
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
-  if (!isSupabaseConfigured) return <SetupNotice />;
   const viewer = await getViewer();
   if (!viewer?.staffRole) {
     return (

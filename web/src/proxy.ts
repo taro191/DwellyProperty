@@ -6,7 +6,11 @@ const PROTECTED = ["/dashboard", "/me", "/messages", "/notifications", "/admin",
 
 /** Refreshes the Supabase session on every request and gates signed-in areas. */
 export async function proxy(request: NextRequest) {
-  if (!isSupabaseConfigured) return NextResponse.next();
+  // Not configured yet: show the setup page instead of letting every page throw.
+  if (!isSupabaseConfigured) {
+    if (request.nextUrl.pathname === "/setup") return NextResponse.next();
+    return NextResponse.rewrite(new URL("/setup", request.url));
+  }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
