@@ -1,0 +1,10 @@
+{
+  "description": "Effortlessly compress files to maintain original size without altering the content, ideal for users needing efficient storage solutions.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

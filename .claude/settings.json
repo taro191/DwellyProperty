@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./design/public/dwelly.min.html)",
+      "Read(./design/pnpm-lock.yaml)"
+    ]
+  }
+}

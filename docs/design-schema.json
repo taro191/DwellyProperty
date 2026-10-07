@@ -1,0 +1,1249 @@
+{
+  "properties": {
+    "name": "properties",
+    "displayName": "Properties (อสังหาริมทรัพย์)",
+    "description": "Verified real estate listings, condos, houses, and land records.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Unique property identifier",
+        "sample": "p1"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Property or project name",
+        "sample": "Condo A · Aspire Salaya"
+      },
+      {
+        "name": "location",
+        "type": "string",
+        "required": true,
+        "description": "District or zone",
+        "sample": "Salaya"
+      },
+      {
+        "name": "price",
+        "type": "number",
+        "required": true,
+        "description": "Sale price in THB",
+        "sample": 2350000
+      },
+      {
+        "name": "size",
+        "type": "number",
+        "required": true,
+        "description": "Usable area in sqm",
+        "sample": 32
+      },
+      {
+        "name": "bedrooms",
+        "type": "number",
+        "required": true,
+        "description": "Number of bedrooms (0 = studio)",
+        "sample": 1
+      },
+      {
+        "name": "matchScore",
+        "type": "number",
+        "description": "Buyer match score 0-100",
+        "sample": 94
+      },
+      {
+        "name": "image",
+        "type": "string",
+        "description": "Cover photo URL",
+        "sample": "https://images.unsplash.com/..."
+      },
+      {
+        "name": "tags",
+        "type": "array",
+        "description": "Search and category tags",
+        "sample": [
+          "Ready to Move",
+          "Near Mahidol"
+        ]
+      },
+      {
+        "name": "verified",
+        "type": "boolean",
+        "description": "Verified ownership and deed",
+        "sample": true
+      },
+      {
+        "name": "featured",
+        "type": "boolean",
+        "description": "Dwelly featured spotlight",
+        "sample": false
+      },
+      {
+        "name": "sellerType",
+        "type": "string",
+        "description": "owner | agency",
+        "sample": "owner"
+      },
+      {
+        "name": "propertyCategory",
+        "type": "string",
+        "description": "condo | house | townhome | commercial | land",
+        "sample": "land"
+      },
+      {
+        "name": "landDetails",
+        "type": "object",
+        "description": "Land specifications (rai, ngan, sqWa, titleDeed, zoning)",
+        "sample": {
+          "rai": 1,
+          "ngan": 0,
+          "sqWa": 0,
+          "totalSqWa": 400,
+          "pricePerSqWa": 35000
+        }
+      },
+      {
+        "name": "floor",
+        "type": "number",
+        "description": "Floor number",
+        "sample": 8
+      },
+      {
+        "name": "direction",
+        "type": "string",
+        "description": "Balcony orientation",
+        "sample": "East"
+      },
+      {
+        "name": "furniture",
+        "type": "string",
+        "description": "Furnishing level",
+        "sample": "Fully Furnished"
+      },
+      {
+        "name": "maintenanceFee",
+        "type": "number",
+        "description": "Monthly common fee in THB",
+        "sample": 1500
+      },
+      {
+        "name": "availability",
+        "type": "string",
+        "description": "Move-in availability",
+        "sample": "Immediate"
+      },
+      {
+        "name": "rentPrice",
+        "type": "number",
+        "description": "Monthly rent price if rentable",
+        "sample": 8500
+      },
+      {
+        "name": "views",
+        "type": "number",
+        "description": "Total view count",
+        "sample": 142
+      },
+      {
+        "name": "saves",
+        "type": "number",
+        "description": "Total shortlist saves",
+        "sample": 28
+      },
+      {
+        "name": "interests",
+        "type": "number",
+        "description": "Inquiry count",
+        "sample": 8
+      },
+      {
+        "name": "hasDwellyCommission",
+        "type": "boolean",
+        "description": "Enrolled in Dwelly dynamic commission",
+        "sample": true
+      },
+      {
+        "name": "commissionBaseRate",
+        "type": "number",
+        "description": "Month 1 commission percentage",
+        "sample": 5
+      },
+      {
+        "name": "listingDays",
+        "type": "number",
+        "description": "Days on active market",
+        "sample": 14
+      },
+      {
+        "name": "podCode",
+        "type": "string",
+        "description": "Assigned Dwelly Agency Pod ID",
+        "sample": "POD-SLY-01"
+      },
+      {
+        "name": "podName",
+        "type": "string",
+        "description": "Assigned Agency Pod Name",
+        "sample": "Salaya Prime Estate Pod"
+      },
+      {
+        "name": "sellerName",
+        "type": "string",
+        "description": "Seller name or agency contact",
+        "sample": "Khun Somchai"
+      },
+      {
+        "name": "sellerContact",
+        "type": "string",
+        "description": "Phone number or LINE ID",
+        "sample": "089-123-4567"
+      },
+      {
+        "name": "createdAt",
+        "type": "date",
+        "description": "Listing timestamp",
+        "sample": "2026-09-10T08:00:00.000Z"
+      }
+    ]
+  },
+  "festivals": {
+    "name": "festivals",
+    "displayName": "Dwelly Hubs (โครงการ Dwelly อสังหาฯ)",
+    "description": "Time-boxed real estate Dwelly campaigns and countdowns.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Dwelly Campaign ID",
+        "sample": "f1"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Dwelly campaign name",
+        "sample": "Salaya Used Condo Dwelly"
+      },
+      {
+        "name": "theme",
+        "type": "string",
+        "description": "Theme description",
+        "sample": "Find a room that fits your life."
+      },
+      {
+        "name": "location",
+        "type": "string",
+        "description": "Geographic zone",
+        "sample": "Salaya · Nakhon Pathom"
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "description": "Property category focus",
+        "sample": "Second-hand Condo"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "description": "live | upcoming | ended",
+        "sample": "live"
+      },
+      {
+        "name": "startDate",
+        "type": "string",
+        "description": "Start date label",
+        "sample": "1 Sep 2026"
+      },
+      {
+        "name": "endDate",
+        "type": "string",
+        "description": "End date label",
+        "sample": "15 Sep 2026"
+      },
+      {
+        "name": "propertyCount",
+        "type": "number",
+        "description": "Total properties participating",
+        "sample": 52
+      },
+      {
+        "name": "sellerCount",
+        "type": "number",
+        "description": "Total verified sellers",
+        "sample": 38
+      },
+      {
+        "name": "countdown",
+        "type": "string",
+        "description": "Remaining countdown ticker",
+        "sample": "03d 08h 42m"
+      }
+    ]
+  },
+  "zones": {
+    "name": "zones",
+    "displayName": "Dwelly Zones (โซนโครงการ Dwelly)",
+    "description": "Curated themed zones for instant property filtering.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Zone ID",
+        "sample": "z1"
+      },
+      {
+        "name": "icon",
+        "type": "string",
+        "description": "Emoji icon",
+        "sample": "🎓"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Zone title",
+        "sample": "Near Mahidol"
+      },
+      {
+        "name": "desc",
+        "type": "string",
+        "description": "Brief description",
+        "sample": "Within 2 km of campus"
+      },
+      {
+        "name": "count",
+        "type": "number",
+        "description": "Number of listings",
+        "sample": 18
+      }
+    ]
+  },
+  "activities": {
+    "name": "activities",
+    "displayName": "Dwelly Activities (กิจกรรมและทัวร์)",
+    "description": "Live walkthroughs, Q&As, appraisal workshops and events.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Activity ID",
+        "sample": "a1"
+      },
+      {
+        "name": "time",
+        "type": "string",
+        "description": "Start time",
+        "sample": "09:00"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "description": "Event title",
+        "sample": "10 New Properties Launch"
+      },
+      {
+        "name": "desc",
+        "type": "string",
+        "description": "Event description",
+        "sample": "Fresh listings drop"
+      },
+      {
+        "name": "host",
+        "type": "string",
+        "description": "Host name or organization",
+        "sample": "Dwelly Team"
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "description": "launch | qa | consultation | tour | comparison",
+        "sample": "launch"
+      },
+      {
+        "name": "seats",
+        "type": "number",
+        "description": "Seat capacity or null for unlimited",
+        "sample": 30
+      },
+      {
+        "name": "registered",
+        "type": "boolean",
+        "description": "User registration state",
+        "sample": false
+      },
+      {
+        "name": "day",
+        "type": "string",
+        "description": "today | tomorrow | upcoming",
+        "sample": "today"
+      }
+    ]
+  },
+  "leads": {
+    "name": "leads",
+    "displayName": "Seller Leads (ผู้สนใจและลูกค้ามุ่งหวัง)",
+    "description": "Buyer inquiries, tour requests, and deal negotiations for sellers.",
+    "primaryKey": "id",
+    "foreignKeys": [
+      {
+        "column": "propertyId",
+        "targetTable": "properties",
+        "targetColumn": "id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Lead ID",
+        "sample": "l1"
+      },
+      {
+        "name": "propertyId",
+        "type": "string",
+        "description": "Related property ID",
+        "sample": "p1"
+      },
+      {
+        "name": "buyer",
+        "type": "string",
+        "required": true,
+        "description": "Buyer name / handle",
+        "sample": "Buyer #1024 (Arisa T.)"
+      },
+      {
+        "name": "intent",
+        "type": "string",
+        "required": true,
+        "description": "Inquiry intent",
+        "sample": "Request more details & floor plan"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "required": true,
+        "description": "new | contacted | appointment | offer | closed",
+        "sample": "new"
+      },
+      {
+        "name": "property",
+        "type": "string",
+        "description": "Property title",
+        "sample": "Condo A · Aspire Salaya"
+      },
+      {
+        "name": "phone",
+        "type": "string",
+        "description": "Contact phone",
+        "sample": "089-111-2233"
+      },
+      {
+        "name": "offerAmount",
+        "type": "number",
+        "description": "Proposed offer amount if any",
+        "sample": 2600000
+      },
+      {
+        "name": "time",
+        "type": "string",
+        "description": "Time relative label",
+        "sample": "10 min ago"
+      },
+      {
+        "name": "createdAt",
+        "type": "date",
+        "description": "Created timestamp",
+        "sample": "2026-09-24T22:50:00.000Z"
+      }
+    ]
+  },
+  "appointments": {
+    "name": "appointments",
+    "displayName": "Appointments (การนัดหมายชมห้อง/วิดีโอ)",
+    "description": "Inspection tours, live video calls, and consultations.",
+    "primaryKey": "id",
+    "foreignKeys": [
+      {
+        "column": "propertyId",
+        "targetTable": "properties",
+        "targetColumn": "id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Appointment ID",
+        "sample": "app-1"
+      },
+      {
+        "name": "propertyId",
+        "type": "string",
+        "required": true,
+        "description": "Property ID",
+        "sample": "p1"
+      },
+      {
+        "name": "propertyName",
+        "type": "string",
+        "required": true,
+        "description": "Property name",
+        "sample": "Condo A · Aspire Salaya"
+      },
+      {
+        "name": "buyerName",
+        "type": "string",
+        "required": true,
+        "description": "Client or buyer name",
+        "sample": "Buyer #1019 (Tanaporn K.)"
+      },
+      {
+        "name": "sellerName",
+        "type": "string",
+        "required": true,
+        "description": "Host or seller name",
+        "sample": "Khun Somchai"
+      },
+      {
+        "name": "format",
+        "type": "string",
+        "required": true,
+        "description": "video | visit | phone",
+        "sample": "video"
+      },
+      {
+        "name": "date",
+        "type": "string",
+        "required": true,
+        "description": "Date label",
+        "sample": "25 Sep 2026"
+      },
+      {
+        "name": "timeSlot",
+        "type": "string",
+        "required": true,
+        "description": "Time slot",
+        "sample": "14:00"
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "description": "pending | confirmed | completed | cancelled",
+        "sample": "confirmed"
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "description": "Special instructions",
+        "sample": "Balcony orientation review"
+      },
+      {
+        "name": "createdAt",
+        "type": "date",
+        "description": "Created timestamp",
+        "sample": "2026-09-24T10:00:00.000Z"
+      }
+    ]
+  },
+  "offers": {
+    "name": "offers",
+    "displayName": "Offers (ข้อเสนอซื้อ-ขาย/เช่า)",
+    "description": "Binding price proposals with validity periods and terms.",
+    "primaryKey": "id",
+    "foreignKeys": [
+      {
+        "column": "propertyId",
+        "targetTable": "properties",
+        "targetColumn": "id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Offer ID",
+        "sample": "off-1"
+      },
+      {
+        "name": "propertyId",
+        "type": "string",
+        "required": true,
+        "description": "Property ID",
+        "sample": "p3"
+      },
+      {
+        "name": "propertyName",
+        "type": "string",
+        "required": true,
+        "description": "Property name",
+        "sample": "Condo C · The Breeze"
+      },
+      {
+        "name": "buyerName",
+        "type": "string",
+        "required": true,
+        "description": "Proposer name",
+        "sample": "Buyer #1008 (Wichai S.)"
+      },
+      {
+        "name": "listedPrice",
+        "type": "number",
+        "required": true,
+        "description": "Original listed price",
+        "sample": 2750000
+      },
+      {
+        "name": "offerPrice",
+        "type": "number",
+        "required": true,
+        "description": "Proposed offer price",
+        "sample": 2600000
+      },
+      {
+        "name": "discountAmount",
+        "type": "number",
+        "description": "Difference in THB",
+        "sample": 150000
+      },
+      {
+        "name": "discountPercent",
+        "type": "number",
+        "description": "Difference in percentage",
+        "sample": 5.4
+      },
+      {
+        "name": "validDays",
+        "type": "number",
+        "description": "Offer validity duration in days",
+        "sample": 3
+      },
+      {
+        "name": "status",
+        "type": "string",
+        "description": "pending | accepted | declined | countered",
+        "sample": "pending"
+      },
+      {
+        "name": "note",
+        "type": "string",
+        "description": "Offer conditions",
+        "sample": "Cash buyer ready to close within 14 days"
+      },
+      {
+        "name": "createdAt",
+        "type": "date",
+        "description": "Created timestamp",
+        "sample": "2026-09-24T14:15:00.000Z"
+      }
+    ]
+  },
+  "conversations": {
+    "name": "conversations",
+    "displayName": "Conversations & Messages (แชทและการสื่อสาร)",
+    "description": "Real-time chat threads between buyers, sellers, and agents.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Conversation ID",
+        "sample": "m1"
+      },
+      {
+        "name": "propertyId",
+        "type": "string",
+        "description": "Related property ID",
+        "sample": "p1"
+      },
+      {
+        "name": "propertyName",
+        "type": "string",
+        "required": true,
+        "description": "Property title",
+        "sample": "Condo A · Aspire Salaya"
+      },
+      {
+        "name": "propertyImage",
+        "type": "string",
+        "description": "Image thumbnail",
+        "sample": "https://images.unsplash.com/..."
+      },
+      {
+        "name": "seller",
+        "type": "string",
+        "required": true,
+        "description": "Seller name",
+        "sample": "Khun Somchai"
+      },
+      {
+        "name": "sellerType",
+        "type": "string",
+        "description": "owner | agency",
+        "sample": "owner"
+      },
+      {
+        "name": "lastMessage",
+        "type": "string",
+        "description": "Last message snippet",
+        "sample": "The unit is available from October..."
+      },
+      {
+        "name": "time",
+        "type": "string",
+        "description": "Last active time",
+        "sample": "10:32"
+      },
+      {
+        "name": "unread",
+        "type": "number",
+        "description": "Unread message count",
+        "sample": 2
+      },
+      {
+        "name": "messages",
+        "type": "array",
+        "description": "List of ChatMessage objects",
+        "sample": []
+      }
+    ]
+  },
+  "agency_pods": {
+    "name": "agency_pods",
+    "displayName": "Agency Pods (เครือข่ายพอดนายหน้า)",
+    "description": "Certified 4-way trust network groups with license and escrow verification.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Pod ID",
+        "sample": "pod-1"
+      },
+      {
+        "name": "podCode",
+        "type": "string",
+        "required": true,
+        "description": "Pod unique code",
+        "sample": "POD-SLY-01"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Pod title",
+        "sample": "Salaya Prime Estate Pod"
+      },
+      {
+        "name": "zone",
+        "type": "string",
+        "required": true,
+        "description": "Operational district",
+        "sample": "ศาลายา · นครปฐม"
+      },
+      {
+        "name": "leaderName",
+        "type": "string",
+        "required": true,
+        "description": "Managing Broker",
+        "sample": "กฤษดา พัฒนกิจ"
+      },
+      {
+        "name": "trustScore",
+        "type": "number",
+        "description": "Trust score 0-100",
+        "sample": 99
+      },
+      {
+        "name": "verifiedStatus",
+        "type": "string",
+        "description": "certified | pending | premium",
+        "sample": "certified"
+      },
+      {
+        "name": "membersCount",
+        "type": "number",
+        "description": "Total specialists in pod",
+        "sample": 4
+      },
+      {
+        "name": "closedDeals",
+        "type": "number",
+        "description": "Total closed deals",
+        "sample": 48
+      },
+      {
+        "name": "activeListings",
+        "type": "number",
+        "description": "Active properties",
+        "sample": 18
+      },
+      {
+        "name": "insuranceCoverage",
+        "type": "number",
+        "description": "Transaction escrow insurance limit",
+        "sample": 10000000
+      },
+      {
+        "name": "reviewsCount",
+        "type": "number",
+        "description": "Number of verified reviews",
+        "sample": 36
+      },
+      {
+        "name": "rating",
+        "type": "number",
+        "description": "Average rating 0-5",
+        "sample": 4.95
+      },
+      {
+        "name": "verifications",
+        "type": "object",
+        "description": "Verification checks",
+        "sample": {
+          "licenseVerified": true,
+          "escrowReady": true
+        }
+      },
+      {
+        "name": "members",
+        "type": "array",
+        "description": "Team member details",
+        "sample": []
+      }
+    ]
+  },
+  "agency_profiles": {
+    "name": "agency_profiles",
+    "displayName": "Agent Profiles (โปรไฟล์นายหน้าบุคคล)",
+    "description": "Detailed broker certifications, TREBA licenses, and past deals.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Agent ID",
+        "sample": "agent-1"
+      },
+      {
+        "name": "agentCode",
+        "type": "string",
+        "required": true,
+        "description": "Agent official code",
+        "sample": "AGT-SLY-007"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Thai full name",
+        "sample": "กฤษดา พัฒนกิจ"
+      },
+      {
+        "name": "englishName",
+        "type": "string",
+        "description": "English name",
+        "sample": "Kritsada Phattankit"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "description": "Role & specialization",
+        "sample": "นายหน้าผู้เชี่ยวชาญพิเศษ"
+      },
+      {
+        "name": "agencyCompany",
+        "type": "string",
+        "description": "Company name",
+        "sample": "Salaya Prime Real Estate"
+      },
+      {
+        "name": "avatar",
+        "type": "string",
+        "description": "Avatar photo URL",
+        "sample": "https://images.unsplash.com/..."
+      },
+      {
+        "name": "phone",
+        "type": "string",
+        "description": "Phone number",
+        "sample": "089-456-7890"
+      },
+      {
+        "name": "lineId",
+        "type": "string",
+        "description": "LINE handle",
+        "sample": "@kritsada.estate"
+      },
+      {
+        "name": "email",
+        "type": "string",
+        "description": "Email address",
+        "sample": "kritsada.p@dwellyestate.com"
+      },
+      {
+        "name": "experienceYears",
+        "type": "number",
+        "description": "Years in real estate",
+        "sample": 9
+      },
+      {
+        "name": "specializedZones",
+        "type": "array",
+        "description": "Geographic expertise",
+        "sample": [
+          "ศาลายา",
+          "ม.มหิดล"
+        ]
+      },
+      {
+        "name": "specializedPropertyTypes",
+        "type": "array",
+        "description": "Property specialties",
+        "sample": [
+          "คอนโดมิเนียม"
+        ]
+      },
+      {
+        "name": "bio",
+        "type": "string",
+        "description": "Biography & pledge",
+        "sample": "สวัสดีครับ ผมกฤษดา..."
+      },
+      {
+        "name": "verification",
+        "type": "object",
+        "description": "License and KYC record",
+        "sample": {}
+      },
+      {
+        "name": "stats",
+        "type": "object",
+        "description": "Performance statistics",
+        "sample": {}
+      },
+      {
+        "name": "pastDeals",
+        "type": "array",
+        "description": "Completed transactions",
+        "sample": []
+      },
+      {
+        "name": "certificates",
+        "type": "array",
+        "description": "Licenses & awards",
+        "sample": []
+      },
+      {
+        "name": "reviews",
+        "type": "array",
+        "description": "Client reviews",
+        "sample": []
+      }
+    ]
+  },
+  "notifications": {
+    "name": "notifications",
+    "displayName": "Notifications (การแจ้งเตือน)",
+    "description": "System alerts, offer deadlines, matched properties, and new messages.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Notification ID",
+        "sample": "n1"
+      },
+      {
+        "name": "icon",
+        "type": "string",
+        "description": "Emoji icon",
+        "sample": "🚀"
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "required": true,
+        "description": "festival | match | message | appointment | offer | database",
+        "sample": "festival"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "description": "Alert title",
+        "sample": "Dwelly campaign starts in 3 days"
+      },
+      {
+        "name": "sub",
+        "type": "string",
+        "description": "Alert details",
+        "sample": "Salaya Used Condo Dwelly"
+      },
+      {
+        "name": "time",
+        "type": "string",
+        "description": "Relative time label",
+        "sample": "1h ago"
+      },
+      {
+        "name": "read",
+        "type": "boolean",
+        "description": "Read state",
+        "sample": false
+      },
+      {
+        "name": "createdAt",
+        "type": "date",
+        "description": "Timestamp",
+        "sample": "2026-09-24T22:00:00.000Z"
+      }
+    ]
+  },
+  "commission_settings": {
+    "name": "commission_settings",
+    "displayName": "Commission Rules (การตั้งค่าอัตราคอมมิชชั่น)",
+    "description": "Dwelly Dynamic Velocity Commission tiers per property.",
+    "primaryKey": "propertyId",
+    "foreignKeys": [
+      {
+        "column": "propertyId",
+        "targetTable": "properties",
+        "targetColumn": "id"
+      }
+    ],
+    "columns": [
+      {
+        "name": "propertyId",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Related property ID",
+        "sample": "p1"
+      },
+      {
+        "name": "enabled",
+        "type": "boolean",
+        "required": true,
+        "description": "Active status",
+        "sample": true
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "description": "sale | rent",
+        "sample": "sale"
+      },
+      {
+        "name": "saleMonth1Rate",
+        "type": "number",
+        "description": "Month 1 rate % (3 - 10%)",
+        "sample": 5
+      },
+      {
+        "name": "saleMonth2Rate",
+        "type": "number",
+        "description": "Month 2 rate %",
+        "sample": 2.5
+      },
+      {
+        "name": "saleMonth3PlusRate",
+        "type": "number",
+        "description": "Month 3+ rate %",
+        "sample": 2
+      },
+      {
+        "name": "rentMonth1Rate",
+        "type": "number",
+        "description": "Month 1 rent rate % (100%)",
+        "sample": 100
+      },
+      {
+        "name": "rentMonth2Rate",
+        "type": "number",
+        "description": "Month 2 rent rate % (80%)",
+        "sample": 80
+      },
+      {
+        "name": "rentMonth3PlusRate",
+        "type": "number",
+        "description": "Month 3+ rent rate % (75%)",
+        "sample": 75
+      },
+      {
+        "name": "renewalRate",
+        "type": "number",
+        "description": "Lease renewal bonus % (50%)",
+        "sample": 50
+      },
+      {
+        "name": "listingDays",
+        "type": "number",
+        "description": "Active listing age in days",
+        "sample": 14
+      },
+      {
+        "name": "startDate",
+        "type": "string",
+        "description": "Tier start date",
+        "sample": "2026-09-10"
+      }
+    ]
+  },
+  "users": {
+    "name": "users",
+    "displayName": "Users & Accounts (บัญชีผู้ใช้งาน)",
+    "description": "Authenticated buyers, sellers, landlords, and agency members.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "User ID",
+        "sample": "usr-1"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Full name",
+        "sample": "กิตติ พรหมมา"
+      },
+      {
+        "name": "email",
+        "type": "string",
+        "required": true,
+        "description": "Email address",
+        "sample": "kitti.phromma@gmail.com"
+      },
+      {
+        "name": "avatar",
+        "type": "string",
+        "description": "Avatar photo URL",
+        "sample": "https://images.unsplash.com/..."
+      },
+      {
+        "name": "phone",
+        "type": "string",
+        "description": "Phone number",
+        "sample": "089-123-4567"
+      },
+      {
+        "name": "lineId",
+        "type": "string",
+        "description": "LINE account handle",
+        "sample": "@kitti.bkk"
+      },
+      {
+        "name": "provider",
+        "type": "string",
+        "required": true,
+        "description": "google | line | email",
+        "sample": "google"
+      },
+      {
+        "name": "role",
+        "type": "string",
+        "required": true,
+        "description": "buyer | tenant | seller | owner-landlord | agency | admin",
+        "sample": "buyer"
+      },
+      {
+        "name": "isVerified",
+        "type": "boolean",
+        "description": "KYC verified badge",
+        "sample": true
+      },
+      {
+        "name": "createdAt",
+        "type": "date",
+        "description": "Joined timestamp",
+        "sample": "2025-10-01T00:00:00.000Z"
+      }
+    ]
+  },
+  "audit_logs": {
+    "name": "audit_logs",
+    "displayName": "Audit Logs (บันทึกประวัติการเปลี่ยนแปลง)",
+    "description": "Transaction log of all database inserts, updates, and schema migrations.",
+    "primaryKey": "id",
+    "columns": [
+      {
+        "name": "id",
+        "type": "string",
+        "isPrimary": true,
+        "required": true,
+        "description": "Log entry ID",
+        "sample": "log-1"
+      },
+      {
+        "name": "action",
+        "type": "string",
+        "required": true,
+        "description": "INSERT | UPDATE | DELETE | SEED | RESET | BACKUP | RESTORE",
+        "sample": "INSERT"
+      },
+      {
+        "name": "tableName",
+        "type": "string",
+        "required": true,
+        "description": "Target table name",
+        "sample": "properties"
+      },
+      {
+        "name": "recordId",
+        "type": "string",
+        "description": "Target record ID",
+        "sample": "p1"
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "required": true,
+        "description": "Summary description",
+        "sample": "Added new property Condo A"
+      },
+      {
+        "name": "timestamp",
+        "type": "date",
+        "required": true,
+        "description": "ISO Timestamp",
+        "sample": "2026-09-24T23:00:00.000Z"
+      },
+      {
+        "name": "performedBy",
+        "type": "string",
+        "description": "Actor username or role",
+        "sample": "admin"
+      }
+    ]
+  }
+}
