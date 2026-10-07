@@ -38,7 +38,9 @@ export async function sendEmailOtp(fd: FormData): Promise<ActionResult<{ email: 
   try {
     await auth.api.sendVerificationOTP({ body: { email: parsed.data.email.toLowerCase(), type: "sign-in" } });
   } catch (e) {
-    return authError(e, "ส่งรหัสไม่สำเร็จ กรุณาลองใหม่");
+    if (e instanceof APIError) return authError(e, "ส่งรหัสไม่สำเร็จ กรุณาลองใหม่");
+    console.error("[auth] send OTP failed", e); // e.g. mail server unreachable
+    return { ok: false, error: "ส่งรหัสไม่สำเร็จ กรุณาลองใหม่ หรือติดต่อทีมงาน" };
   }
   return { ok: true, data: { email: parsed.data.email.toLowerCase() }, message: "ส่งรหัส 6 หลักไปที่อีเมลแล้ว" };
 }

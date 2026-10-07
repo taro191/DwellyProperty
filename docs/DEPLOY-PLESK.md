@@ -24,11 +24,9 @@ BETTER_AUTH_SECRET=<สุ่มยาว 32+ ตัวอักษร>
 NEXT_PUBLIC_SITE_URL=https://dwellyproperty.yaydang.com
 STORAGE_DIR=/var/www/vhosts/yaydang.com/dwelly-storage
 CRON_SECRET=<สุ่มยาว 32+ ตัวอักษร>
-SMTP_HOST=...        # ใช้ส่งรหัส OTP (ใช้ mail ของ Plesk ได้)
-SMTP_PORT=587
-SMTP_USER=...
-SMTP_PASSWORD=...
+# อีเมล OTP: ถ้าไม่ตั้ง SMTP_HOST ระบบจะส่งผ่าน sendmail ของเซิร์ฟเวอร์ (Postfix ของ Plesk) อัตโนมัติ
 MAIL_FROM=Dwelly <no-reply@yaydang.com>
+# SMTP_HOST=...        # ถ้าต้องการใช้ SMTP ภายนอกแทน
 ```
 - `.env.local` ไม่ได้อยู่ใน git การ pull ครั้งต่อไปจึงไม่ทับไฟล์นี้
 - ต้องสร้างโฟลเดอร์ `dwelly-storage` ไว้ก่อน
