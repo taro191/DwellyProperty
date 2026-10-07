@@ -60,16 +60,14 @@ export function ChatThread({ conversationId, viewerId, initial }: { conversation
     setMessages((prev) => (prev.some((x) => x.id === data.id) ? prev : [...prev, data as Message]));
   }
 
-  let lastDay = "";
   return (
     <>
       <div className="flex-1 space-y-2 overflow-y-auto border-x border-line bg-surface/40 px-4 py-4">
         {messages.length === 0 && <p className="py-10 text-center text-sm text-subtle">เริ่มทักทายผู้ขายได้เลย 👋</p>}
-        {messages.map((m) => {
+        {messages.map((m, i) => {
           const mine = m.sender_id === viewerId;
           const day = dayFmt.format(new Date(m.created_at));
-          const showDay = day !== lastDay;
-          lastDay = day;
+          const showDay = i === 0 || day !== dayFmt.format(new Date(messages[i - 1].created_at));
           return (
             <div key={m.id}>
               {showDay && <p className="my-3 text-center text-[11px] text-subtle">{day}</p>}

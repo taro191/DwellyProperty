@@ -63,3 +63,7 @@ export function areaLabel(p: Pick<Property, "category" | "usable_area_sqm" | "la
 
 export const isFeatured = (p: Pick<Property, "featured_until">) =>
   Boolean(p.featured_until && new Date(p.featured_until) > new Date());
+
+/** Request-time clock helpers for Server Components (rendered once per request). */
+export const nowMs = () => Date.now();
+export const daysSince = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);

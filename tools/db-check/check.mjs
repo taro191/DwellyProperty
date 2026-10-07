@@ -258,10 +258,21 @@ await expect('consent recorded + latest returned', () => as(U.buyer, async () =>
   return one(`select granted from my_consents() where kind = 'marketing'`);
 }), (r) => r.granted === false);
 
+await expect('PDPA deletion anonymises the account', async () => {
+  const req = await as(U.buyer, () => one(`insert into account_deletion_requests (user_id, reason) values ($1, 'test') returning id`, [U.buyer]));
+  await as(U.admin, () => db.query(`select admin_process_deletion($1)`, [req.id]));
+  const p = await one(`select status, display_name from profiles where id = $1`, [U.buyer]);
+  const pp = await one(`select email, phone from profile_private where user_id = $1`, [U.buyer]);
+  const favs = await one(`select count(*)::int n from favorites where user_id = $1`, [U.buyer]);
+  const msg = await one(`select body from messages where sender_id = $1 limit 1`, [U.buyer]);
+  return { status: p.status, email: pp.email, favs: favs.n, msg: msg.body };
+}, (r) => (r.status === 'deleted' && r.email === null && r.favs === 0 && r.msg.startsWith('[')) || JSON.stringify(r));
+await expectError('deletion processing needs support staff', () => as(U.moderator, () => db.query(`select admin_process_deletion(gen_random_uuid())`)), /Staff permission/);
+
 console.log('\nStorage policies');
 await expect('upload into own folder allowed, other folder blocked', async () => {
-  const mine = await as(U.buyer, () => db.query(`insert into storage.objects (bucket_id, name) values ('property-media', $1)`, [`${U.buyer}/p/1.jpg`]).then(() => 'ok', (e) => e.message));
-  const theirs = await as(U.buyer, () => db.query(`insert into storage.objects (bucket_id, name) values ('property-media', $1)`, [`${U.owner}/p/1.jpg`]).then(() => 'ok', () => 'blocked'));
+  const mine = await as(U.agent, () => db.query(`insert into storage.objects (bucket_id, name) values ('property-media', $1)`, [`${U.agent}/p/1.jpg`]).then(() => 'ok', (e) => e.message));
+  const theirs = await as(U.agent, () => db.query(`insert into storage.objects (bucket_id, name) values ('property-media', $1)`, [`${U.owner}/p/1.jpg`]).then(() => 'ok', () => 'blocked'));
   return { mine, theirs };
 }, (r) => (r.mine === 'ok' && r.theirs === 'blocked') || JSON.stringify(r));
 await expect('verification docs hidden from other users', async () => {

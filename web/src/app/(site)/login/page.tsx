@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/auth";
@@ -23,8 +24,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         )}
         <LoginForms next={next} />
         <p className="mt-6 text-xs text-subtle">
-          การเข้าสู่ระบบถือว่าคุณยอมรับ <a href="/legal/terms" className="underline">ข้อกำหนดการใช้งาน</a> และ{" "}
-          <a href="/legal/privacy" className="underline">นโยบายความเป็นส่วนตัว</a>
+          การเข้าสู่ระบบถือว่าคุณยอมรับ <Link href="/legal/terms" className="underline">ข้อกำหนดการใช้งาน</Link> และ{" "}
+          <Link href="/legal/privacy" className="underline">นโยบายความเป็นส่วนตัว</Link>
         </p>
       </Card>
     </div>

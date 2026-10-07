@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { AppointmentCard } from "@/components/deals";
 import type { Appointment } from "@/lib/types";
+import { nowMs } from "@/lib/format";
 
 export const metadata: Metadata = { title: "นัดหมาย" };
 
@@ -19,7 +20,7 @@ export default async function SellerAppointmentsPage() {
     .order("scheduled_at", { ascending: true })
     .limit(200);
   const rows = (data ?? []) as Row[];
-  const now = Date.now();
+  const now = nowMs();
   const upcoming = rows.filter((a) => new Date(a.scheduled_at).getTime() >= now || a.status === "pending");
   const past = rows.filter((a) => !upcoming.includes(a)).reverse();
 
