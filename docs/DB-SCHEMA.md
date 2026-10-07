@@ -11,7 +11,7 @@ Migrations: `supabase/migrations/` · Seed (dev only): `supabase/seed.sql` · Te
 5. **ข้อมูลติดต่อ (PDPA)** แยกไว้ใน `profile_private` ผู้อื่นเห็นเบอร์ผ่าน `reveal_listing_contact()` ได้เท่านั้น ซึ่งต้องล็อกอินและระบบบันทึก event ทุกครั้ง
 6. **เงิน**: ราคาดึงจาก catalogue ฝั่ง server (`create_order`) และยืนยันการชำระด้วย webhook ผ่าน `fulfill_order` (service role เท่านั้น, เรียกซ้ำได้โดยไม่เกิดผลซ้ำ)
 
-## ตาราง (43 ตาราง ใน 7 โดเมน)
+## ตาราง (40 ตาราง ใน 7 โดเมน)
 
 | โดเมน | ตาราง |
 |---|---|

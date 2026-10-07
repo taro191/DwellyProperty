@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* Design tokens from the Dwelly prototype (dark, emerald accent). */
+:root {
+  --bg: #0d0f12;
+  --surface: #14181f;
+  --surface-2: #1b2129;
+  --border: #232c37;
+  --accent: #10b981;
+  --accent-strong: #34d399;
+  --text: #f8fafc;
+  --muted: #cbd5e1;
+  --subtle: #94a3b8;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #38bdf8;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --font-sans: var(--font-inter), var(--font-thai), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Leaflet tiles look right on the dark theme */
+.leaflet-container {
+  background: var(--surface-2);
+  font-family: var(--font-sans);
+}
+.dwelly-map .leaflet-tile-pane {
+  filter: brightness(0.75) contrast(1.1) saturate(0.6);
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
