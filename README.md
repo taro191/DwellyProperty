@@ -13,6 +13,8 @@
 
 ## ติดตั้งบน host (production)
 
+**Plesk (Hostatom):** ดูขั้นตอนแบบละเอียดใน [docs/DEPLOY-PLESK.md](docs/DEPLOY-PLESK.md)
+
 1. สร้างฐานข้อมูล MySQL 8.0 ขึ้นไป ใช้ charset `utf8mb4` และสร้าง user ให้แอป
 2. ตั้งค่าแอป:
    ```bash

@@ -27,13 +27,25 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/chat/[id]/st
           cleanup();
         }
       };
-      if (since) for (const m of await messagesSince(id, since)) send("message", m);
+      let lastSeen = since ?? new Date().toISOString();
+      const deliver = (m: Message) => {
+        if (m.created_at > lastSeen) lastSeen = m.created_at;
+        send("message", m);
+      };
+      if (since) for (const m of await messagesSince(id, since)) deliver(m);
 
-      const onMessage = (m: Message) => send("message", m);
+      // Same-process messages arrive instantly via the bus. Hosts that run several
+      // app processes (e.g. Plesk/Passenger) are covered by a light DB poll; the
+      // client de-duplicates by message id.
+      const onMessage = (m: Message) => deliver(m);
+      const poll = setInterval(() => {
+        messagesSince(id, lastSeen).then((rows) => rows.forEach((m) => deliver(m as Message)), () => {});
+      }, 3_000);
       const ping = setInterval(() => send("ping", Date.now()), 25_000); // keep proxies from closing the connection
       chatBus.on(`conv:${id}`, onMessage);
       cleanup = () => {
         clearInterval(ping);
+        clearInterval(poll);
         chatBus.off(`conv:${id}`, onMessage);
       };
       req.signal.addEventListener("abort", () => {
