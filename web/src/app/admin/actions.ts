@@ -7,6 +7,7 @@ import { attempt, fail, formObject, invalid } from "@/lib/action-utils";
 import * as listings from "@/server/services/listings";
 import * as trust from "@/server/services/trust";
 import * as admin from "@/server/services/admin";
+import * as accounts from "@/server/services/accounts";
 import { removeFiles, removeUserFolder } from "@/server/storage";
 import type { ActionResult } from "@/lib/types";
 
@@ -166,4 +167,53 @@ export async function setStaff(fd: FormData): Promise<ActionResult> {
   const r = await attempt(() => admin.setStaff(viewer, { ...v, active: v.active === "true" }), "บันทึกสิทธิ์ทีมงานแล้ว");
   revalidatePath("/admin/staff");
   return r;
+}
+
+// ---------------------------------------------------------------------------
+// User management (super admin)
+// ---------------------------------------------------------------------------
+const STAFF = ["super_admin", "moderator", "verifier", "support", "finance"] as const;
+const staffOrNone = z.enum([...STAFF, "none"]).transform((v) => (v === "none" ? null : v));
+
+export async function createUser(fd: FormData): Promise<ActionResult> {
+  const viewer = await requireStaff(["super_admin"]);
+  const parsed = z.object({
+    email: z.email("อีเมลไม่ถูกต้อง"),
+    name: z.string().trim().max(80).optional(),
+    password: z.string().min(8, "รหัสผ่านอย่างน้อย 8 ตัวอักษร").max(200).optional(),
+    staff_role: staffOrNone.default(null),
+    app_roles: z.array(z.enum(["buyer", "tenant", "owner", "investor", "agent"])).default([]),
+  }).safeParse(formObject(fd));
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  const r = await attempt(() => accounts.createUserAsAdmin(viewer, {
+    email: v.email, name: v.name, password: v.password, staffRole: v.staff_role, appRoles: v.app_roles,
+  }), v.password ? "สร้างผู้ใช้แล้ว — ล็อกอินด้วยอีเมลและรหัสผ่านที่ตั้งไว้ได้ทันที" : "สร้างผู้ใช้แล้ว — ผู้ใช้ล็อกอินด้วยรหัส OTP ทางอีเมล");
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/staff");
+  return r;
+}
+
+export async function setUserStaffRole(fd: FormData): Promise<ActionResult> {
+  const viewer = await requireStaff(["super_admin"]);
+  const parsed = z.object({ id, staff_role: staffOrNone }).safeParse(formObject(fd));
+  if (!parsed.success) return invalid(parsed.error);
+  const r = await attempt(() => accounts.setStaffRole(viewer, parsed.data.id, parsed.data.staff_role),
+    parsed.data.staff_role ? "บันทึกสิทธิ์ admin แล้ว" : "ถอนสิทธิ์ admin แล้ว");
+  revalidatePath(`/admin/users/${parsed.data.id}`);
+  revalidatePath("/admin/staff");
+  return r;
+}
+
+export async function setUserPassword(fd: FormData): Promise<ActionResult> {
+  const viewer = await requireStaff(["super_admin"]);
+  const parsed = z.object({
+    id,
+    password: z.string().min(8, "รหัสผ่านอย่างน้อย 8 ตัวอักษร").max(200),
+    confirm: z.string(),
+  }).refine((v) => v.password === v.confirm, { message: "รหัสผ่านทั้งสองช่องไม่ตรงกัน", path: ["confirm"] })
+    .safeParse(formObject(fd));
+  if (!parsed.success) return invalid(parsed.error);
+  return attempt(() => accounts.setPasswordAsAdmin(viewer, parsed.data.id, parsed.data.password),
+    "ตั้งรหัสผ่านใหม่แล้ว และให้ผู้ใช้ออกจากระบบทุกอุปกรณ์");
 }

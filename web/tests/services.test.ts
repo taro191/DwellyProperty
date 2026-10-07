@@ -246,6 +246,34 @@ describe("admin CLI", () => {
   });
 });
 
+describe("super admin user management", () => {
+  it("only super admins create users, grant/revoke admin and reset passwords", async () => {
+    const accounts = await import("@/server/services/accounts");
+    const { verifyPassword } = await import("better-auth/crypto");
+    await expect(accounts.createUserAsAdmin(await actor("moderator"), { email: "new.mod@example.com" })).rejects.toThrow("Super Admin");
+
+    const admin = await actor("admin");
+    const r = await accounts.createUserAsAdmin(admin, { email: "New.Mod@example.com", name: "New Mod", password: "initial-pass-1", staffRole: "moderator", appRoles: ["agent"] });
+    await expect(accounts.createUserAsAdmin(admin, { email: "new.mod@example.com" })).rejects.toThrow("มีบัญชีอยู่แล้ว");
+    let [s] = await db.select().from(t.staff_members).where(eq(t.staff_members.user_id, r.id));
+    expect(s.role).toBe("moderator");
+    const roles = (await db.select().from(t.user_roles).where(eq(t.user_roles.user_id, r.id))).map((x) => x.role).sort();
+    expect(roles).toEqual(["agent", "buyer"]);
+
+    await accounts.setStaffRole(admin, r.id, null);
+    [s] = await db.select().from(t.staff_members).where(eq(t.staff_members.user_id, r.id));
+    expect(s.active).toBe(false);
+    await expect(accounts.setStaffRole(admin, admin.id, "moderator")).rejects.toThrow("ตัวเอง");
+
+    await accounts.setPasswordAsAdmin(admin, r.id, "changed-pass-2");
+    const [acc] = await db.select().from(t.account).where(eq(t.account.userId, r.id));
+    expect(await verifyPassword({ hash: acc.password!, password: "changed-pass-2" })).toBe(true);
+    await expect(accounts.setPasswordAsAdmin(await actor("moderator"), r.id, "whatever-123")).rejects.toThrow();
+    const logs = await db.select().from(t.audit_logs).where(eq(t.audit_logs.entity_id, r.id));
+    expect(logs.map((l) => l.action)).toEqual(expect.arrayContaining(["USER_CREATED", "STAFF_SET", "PASSWORD_RESET"]));
+  });
+});
+
 describe("billing, maintenance, PDPA", () => {
   it("order price comes from the catalogue; fulfilment is idempotent and features the listing", async () => {
     const p = (await db.select().from(t.properties).where(and(eq(t.properties.owner_id, U.owner), eq(t.properties.status, "active"))))[0];

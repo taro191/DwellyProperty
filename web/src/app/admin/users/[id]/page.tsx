@@ -4,11 +4,12 @@ import { notFound } from "next/navigation";
 import { hasStaffRole, requireStaff } from "@/lib/auth";
 import { userDetail } from "@/server/services/admin";
 import { Avatar } from "@/components/avatar";
-import { Alert, Badge, Card, PageHeader, Textarea } from "@/components/ui";
-import { ActionForm, SubmitButton } from "@/components/ui/form";
-import { REPORT_REASON_LABEL, ROLE_LABEL, STATUS_LABEL, STATUS_TONE, VERIFICATION_KIND_LABEL, VERIFICATION_STATUS_LABEL } from "@/lib/constants";
+import { Alert, Badge, Card, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
+import { REPORT_REASON_LABEL, ROLE_LABEL, STAFF_ROLE_LABEL, STATUS_LABEL, STATUS_TONE, VERIFICATION_KIND_LABEL, VERIFICATION_STATUS_LABEL } from "@/lib/constants";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { setUserStatus } from "../../actions";
+import { setUserPassword, setUserStaffRole, setUserStatus } from "../../actions";
+import type { StaffRole } from "@/lib/types";
 
 export const metadata: Metadata = { title: "ข้อมูลผู้ใช้" };
 
@@ -20,6 +21,7 @@ export default async function AdminUserDetail({ params }: PageProps<"/admin/user
   const { listings, reports, verifications, staff } = u;
   const priv = { email: u.email, phone: u.phone, line_id: u.line_id };
   const canModerate = hasStaffRole(viewer, ["support"]) && id !== viewer.id;
+  const isSuperAdmin = hasStaffRole(viewer, ["super_admin"]);
 
   return (
     <div className="space-y-6">
@@ -70,6 +72,34 @@ export default async function AdminUserDetail({ params }: PageProps<"/admin/user
           )}
         </div>
 
+        <div className="space-y-4">
+        {isSuperAdmin && u.status !== "deleted" && (
+          <Card className="space-y-4 p-5">
+            <h2 className="font-bold">สิทธิ์ admin</h2>
+            <ActionForm action={setUserStaffRole} className="flex gap-2">
+              <input type="hidden" name="id" value={u.id} />
+              <Select name="staff_role" defaultValue={staff?.active ? staff.role : "none"} className="h-9 flex-1" aria-label="สิทธิ์ admin"
+                disabled={id === viewer.id}>
+                <option value="none">ไม่มี (ผู้ใช้ทั่วไป)</option>
+                {(Object.keys(STAFF_ROLE_LABEL) as StaffRole[]).map((r) => <option key={r} value={r}>{STAFF_ROLE_LABEL[r]}</option>)}
+              </Select>
+              <SubmitButton size="sm" disabled={id === viewer.id}>บันทึก</SubmitButton>
+            </ActionForm>
+            {id === viewer.id && <p className="text-xs text-subtle">เปลี่ยนสิทธิ์ของตัวเองไม่ได้</p>}
+
+            <h2 className="pt-2 font-bold">ตั้งรหัสผ่านใหม่</h2>
+            <ActionForm action={setUserPassword} className="space-y-2" resetOnSuccess>
+              <input type="hidden" name="id" value={u.id} />
+              <Input name="password" type="password" minLength={8} required placeholder="รหัสผ่านใหม่ (8 ตัวขึ้นไป)" autoComplete="new-password" />
+              <FieldError name="password" />
+              <Input name="confirm" type="password" minLength={8} required placeholder="ยืนยันรหัสผ่าน" autoComplete="new-password" />
+              <FieldError name="confirm" />
+              <SubmitButton size="sm" variant="secondary">ตั้งรหัสผ่าน</SubmitButton>
+              <p className="text-xs text-subtle">ผู้ใช้จะถูกออกจากระบบทุกอุปกรณ์</p>
+            </ActionForm>
+          </Card>
+        )}
+
         {canModerate && u.status !== "deleted" && (
           <Card className="space-y-3 p-5">
             <h2 className="font-bold">จัดการบัญชี</h2>
@@ -84,6 +114,7 @@ export default async function AdminUserDetail({ params }: PageProps<"/admin/user
             </ActionForm>
           </Card>
         )}
+        </div>
       </div>
     </div>
   );

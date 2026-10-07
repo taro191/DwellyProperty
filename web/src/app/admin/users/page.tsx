@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireStaff } from "@/lib/auth";
+import { hasStaffRole, requireStaff } from "@/lib/auth";
+import { CreateUserForm } from "./create-user-form";
 import { searchUsers } from "@/server/services/admin";
 import { Avatar } from "@/components/avatar";
 import { Badge, Card, EmptyState, Input, PageHeader, Select, buttonClass } from "@/components/ui";
@@ -19,6 +20,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
   return (
     <div>
       <PageHeader title="ผู้ใช้" subtitle="ค้นหาด้วยชื่อหรืออีเมล" />
+      {hasStaffRole(viewer, ["super_admin"]) && <CreateUserForm />}
       <form className="mb-4 flex flex-wrap gap-2">
         <Input name="q" defaultValue={q} placeholder="ชื่อ หรือ อีเมล" className="h-9 w-64" />
         <Select name="status" defaultValue={status} className="h-9 w-40">
