@@ -6,6 +6,8 @@ import { nextCookies } from "better-auth/next-js";
 import { db } from "@/server/db";
 import { account, profiles, session, user, user_roles, verification } from "@/server/db/schema";
 import { sendMail } from "@/server/mail";
+import { APIError } from "better-auth/api";
+import { isLoginDisabled } from "@/server/services/accounts";
 import { SITE_URL } from "@/lib/env";
 
 const google = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -36,6 +38,17 @@ export const auth = betterAuth({
   session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
   rateLimit: { enabled: true, window: 60, max: 30 },
   databaseHooks: {
+    session: {
+      create: {
+        // Super admins can switch off sign-in per user; this blocks every method (password, OTP, Google, LINE).
+        before: async (session) => {
+          if (await isLoginDisabled(session.userId)) {
+            throw new APIError("FORBIDDEN", { message: "LOGIN_DISABLED" });
+          }
+          return { data: session };
+        },
+      },
+    },
     user: {
       create: {
         // Every account gets an app profile + default role (replaces the old auth trigger).

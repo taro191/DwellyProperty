@@ -113,3 +113,25 @@ export async function setPasswordAsAdmin(actor: Actor, userId: string, password:
     await audit(tx, actor.id, "PASSWORD_RESET", "profiles", userId, "by super admin");
   });
 }
+
+/** True when a super admin has switched off sign-in for this user. Used by the auth hook. */
+export async function isLoginDisabled(userId: string) {
+  const [p] = await db.select({ off: t.profiles.login_disabled }).from(t.profiles).where(eq(t.profiles.id, userId)).limit(1);
+  return Boolean(p?.off);
+}
+
+/** Enable/disable sign-in for a user. Disabling also ends all of their sessions. */
+export async function setLoginEnabled(actor: Actor, userId: string, enabled: boolean, reason?: string | null) {
+  requireSuperAdmin(actor);
+  if (userId === actor.id) throw new AppError("ไม่สามารถปิดการเข้าสู่ระบบของตัวเองได้");
+  if (!enabled && !reason?.trim()) throw new AppError("กรุณาระบุเหตุผล");
+  const [p] = await db.select({ id: t.profiles.id }).from(t.profiles).where(eq(t.profiles.id, userId)).limit(1);
+  if (!p) throw notFound("ไม่พบผู้ใช้");
+  await db.transaction(async (tx) => {
+    await tx.update(t.profiles)
+      .set({ login_disabled: !enabled, login_disabled_reason: enabled ? null : reason!.trim().slice(0, 300) })
+      .where(eq(t.profiles.id, userId));
+    if (!enabled) await tx.delete(t.session).where(eq(t.session.userId, userId));
+    await audit(tx, actor.id, enabled ? "LOGIN_ENABLED" : "LOGIN_DISABLED", "profiles", userId, reason ?? null);
+  });
+}

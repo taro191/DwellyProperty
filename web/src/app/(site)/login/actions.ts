@@ -25,6 +25,9 @@ async function landing(userId: string, next: string) {
 function authError(e: unknown, fallback: string): ActionResult<never> {
   if (e instanceof APIError) {
     if (e.status === "TOO_MANY_REQUESTS") return { ok: false, error: "ลองบ่อยเกินไป กรุณารอสักครู่" };
+    if (String(e.body?.message ?? e.message).includes("LOGIN_DISABLED")) {
+      return { ok: false, error: "บัญชีนี้ถูกปิดการเข้าสู่ระบบ กรุณาติดต่อทีมงาน" };
+    }
     return { ok: false, error: fallback };
   }
   throw e;

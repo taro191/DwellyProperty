@@ -126,6 +126,9 @@ export const profiles = mysqlTable("profiles", {
   is_kyc_verified: boolean("is_kyc_verified").notNull().default(false),
   kyc_verified_at: isoDatetime("kyc_verified_at"),
   locale: mysqlEnum("locale", ["th", "en"]).notNull().default("th"),
+  // Super-admin switch: when true the user cannot sign in by any method.
+  login_disabled: boolean("login_disabled").notNull().default(false),
+  login_disabled_reason: varchar("login_disabled_reason", { length: 300 }),
   onboarded_at: isoDatetime("onboarded_at"),
   // Contact details (PDPA): only exposed through services, never in public queries.
   phone: varchar("phone", { length: 20 }),

@@ -45,6 +45,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<"/admin
                 {u.roles.map((r) => <Badge key={r}>{ROLE_LABEL[r]}</Badge>)}
                 {u.is_kyc_verified && <Badge tone="accent">KYC</Badge>}
                 {u.status !== "active" && <Badge tone="danger">{u.status}</Badge>}
+                {u.login_disabled && <Badge tone="danger">ปิดล็อกอิน</Badge>}
               </div>
             </Link>
           ))}

@@ -8,7 +8,7 @@ import { Alert, Badge, Card, Input, PageHeader, Select, Textarea } from "@/compo
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
 import { REPORT_REASON_LABEL, ROLE_LABEL, STAFF_ROLE_LABEL, STATUS_LABEL, STATUS_TONE, VERIFICATION_KIND_LABEL, VERIFICATION_STATUS_LABEL } from "@/lib/constants";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { setUserPassword, setUserStaffRole, setUserStatus } from "../../actions";
+import { setUserLogin, setUserPassword, setUserStaffRole, setUserStatus } from "../../actions";
 import type { StaffRole } from "@/lib/types";
 
 export const metadata: Metadata = { title: "ข้อมูลผู้ใช้" };
@@ -75,7 +75,7 @@ export default async function AdminUserDetail({ params }: PageProps<"/admin/user
         <div className="space-y-4">
         {isSuperAdmin && u.status !== "deleted" && (
           <Card className="space-y-4 p-5">
-            <h2 className="font-bold">สิทธิ์ admin</h2>
+            <h2 className="font-bold">สิทธิ์ admin &amp; การเข้าถึง</h2>
             <ActionForm action={setUserStaffRole} className="flex gap-2">
               <input type="hidden" name="id" value={u.id} />
               <Select name="staff_role" defaultValue={staff?.active ? staff.role : "none"} className="h-9 flex-1" aria-label="สิทธิ์ admin"
@@ -86,6 +86,32 @@ export default async function AdminUserDetail({ params }: PageProps<"/admin/user
               <SubmitButton size="sm" disabled={id === viewer.id}>บันทึก</SubmitButton>
             </ActionForm>
             {id === viewer.id && <p className="text-xs text-subtle">เปลี่ยนสิทธิ์ของตัวเองไม่ได้</p>}
+
+            <h2 className="pt-2 font-bold">การเข้าสู่ระบบ</h2>
+            <p className="text-sm">
+              สถานะ:{" "}
+              {u.login_disabled
+                ? <Badge tone="danger">ปิดการเข้าสู่ระบบ</Badge>
+                : <Badge tone="accent">เข้าสู่ระบบได้</Badge>}
+            </p>
+            {u.login_disabled && u.login_disabled_reason && <p className="text-xs text-subtle">เหตุผล: {u.login_disabled_reason}</p>}
+            {id === viewer.id ? (
+              <p className="text-xs text-subtle">ปิดการเข้าสู่ระบบของตัวเองไม่ได้</p>
+            ) : u.login_disabled ? (
+              <ActionForm action={setUserLogin}>
+                <input type="hidden" name="id" value={u.id} />
+                <input type="hidden" name="enabled" value="true" />
+                <SubmitButton size="sm">เปิดการเข้าสู่ระบบ</SubmitButton>
+              </ActionForm>
+            ) : (
+              <ActionForm action={setUserLogin} className="space-y-2">
+                <input type="hidden" name="id" value={u.id} />
+                <input type="hidden" name="enabled" value="false" />
+                <Input name="reason" required maxLength={300} placeholder="เหตุผล (บันทึกใน audit log)" />
+                <SubmitButton size="sm" variant="danger">ปิดการเข้าสู่ระบบ</SubmitButton>
+                <p className="text-xs text-subtle">ผู้ใช้จะล็อกอินไม่ได้ทุกช่องทาง และถูกออกจากระบบทันที</p>
+              </ActionForm>
+            )}
 
             <h2 className="pt-2 font-bold">ตั้งรหัสผ่านใหม่</h2>
             <ActionForm action={setUserPassword} className="space-y-2" resetOnSuccess>

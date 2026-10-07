@@ -217,3 +217,15 @@ export async function setUserPassword(fd: FormData): Promise<ActionResult> {
   return attempt(() => accounts.setPasswordAsAdmin(viewer, parsed.data.id, parsed.data.password),
     "ตั้งรหัสผ่านใหม่แล้ว และให้ผู้ใช้ออกจากระบบทุกอุปกรณ์");
 }
+
+export async function setUserLogin(fd: FormData): Promise<ActionResult> {
+  const viewer = await requireStaff(["super_admin"]);
+  const parsed = z.object({ id, enabled: z.enum(["true", "false"]), reason: note }).safeParse(formObject(fd));
+  if (!parsed.success) return invalid(parsed.error);
+  const enabled = parsed.data.enabled === "true";
+  const r = await attempt(() => accounts.setLoginEnabled(viewer, parsed.data.id, enabled, parsed.data.reason),
+    enabled ? "เปิดการเข้าสู่ระบบแล้ว" : "ปิดการเข้าสู่ระบบแล้ว และให้ผู้ใช้ออกจากระบบทุกอุปกรณ์");
+  revalidatePath(`/admin/users/${parsed.data.id}`);
+  revalidatePath("/admin/users");
+  return r;
+}

@@ -274,6 +274,28 @@ describe("super admin user management", () => {
   });
 });
 
+describe("login enable/disable", () => {
+  it("only super admins toggle login; disabling needs a reason and ends sessions", async () => {
+    const accounts = await import("@/server/services/accounts");
+    const admin = await actor("admin");
+    const now = new Date();
+    await db.insert(t.session).values({ id: crypto.randomUUID(), token: crypto.randomUUID(), userId: U.agent, expiresAt: new Date(Date.now() + 86_400_000), createdAt: now, updatedAt: now });
+
+    await expect(accounts.setLoginEnabled(await actor("moderator"), U.agent, false, "x")).rejects.toThrow("Super Admin");
+    await expect(accounts.setLoginEnabled(admin, admin.id, false, "x")).rejects.toThrow("ตัวเอง");
+    await expect(accounts.setLoginEnabled(admin, U.agent, false, "")).rejects.toThrow("เหตุผล");
+
+    await accounts.setLoginEnabled(admin, U.agent, false, "ทดสอบปิดล็อกอิน");
+    expect(await accounts.isLoginDisabled(U.agent)).toBe(true);
+    expect((await db.select().from(t.session).where(eq(t.session.userId, U.agent))).length).toBe(0);
+
+    await accounts.setLoginEnabled(admin, U.agent, true);
+    expect(await accounts.isLoginDisabled(U.agent)).toBe(false);
+    const actions = (await db.select().from(t.audit_logs).where(eq(t.audit_logs.entity_id, U.agent))).map((l) => l.action);
+    expect(actions).toEqual(expect.arrayContaining(["LOGIN_DISABLED", "LOGIN_ENABLED"]));
+  });
+});
+
 describe("billing, maintenance, PDPA", () => {
   it("order price comes from the catalogue; fulfilment is idempotent and features the listing", async () => {
     const p = (await db.select().from(t.properties).where(and(eq(t.properties.owner_id, U.owner), eq(t.properties.status, "active"))))[0];

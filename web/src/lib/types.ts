@@ -32,6 +32,8 @@ export interface Profile {
   status_reason: string | null;
   is_kyc_verified: boolean;
   locale: "th" | "en";
+  login_disabled: boolean;
+  login_disabled_reason: string | null;
   onboarded_at: string | null;
   created_at: string;
 }

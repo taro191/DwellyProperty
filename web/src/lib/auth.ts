@@ -27,7 +27,8 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
     db.select({ role: user_roles.role }).from(user_roles).where(eq(user_roles.user_id, userId)),
     db.select().from(staff_members).where(eq(staff_members.user_id, userId)).limit(1),
   ]);
-  if (!profile || profile.status === "deleted") return null;
+  // Deleted or sign-in disabled by a super admin: treat as signed out.
+  if (!profile || profile.status === "deleted" || profile.login_disabled) return null;
 
   return {
     id: userId,
