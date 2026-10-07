@@ -7,6 +7,8 @@ import { getViewer } from "@/lib/auth";
 import { Logo } from "@/components/site-header";
 import { AdminNav } from "./admin-nav";
 import { STAFF_ROLE_LABEL } from "@/lib/constants";
+import { LogOut } from "lucide-react";
+import { signOut } from "@/app/(site)/login/actions";
 
 export const metadata: Metadata = { title: { default: "Admin", template: "%s · Dwelly Admin" }, robots: { index: false } };
 
@@ -28,7 +30,13 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         <div className="px-2"><Logo /></div>
         <p className="mt-1 px-2 text-xs text-subtle">Back office · {STAFF_ROLE_LABEL[viewer.staffRole]}</p>
         <AdminNav role={viewer.staffRole} />
-        <Link href="/" className="mt-auto px-2 text-xs text-subtle hover:text-fg">← กลับเว็บไซต์</Link>
+        <div className="mt-auto space-y-2 border-t border-line px-2 pt-3">
+          <p className="truncate text-xs text-subtle">{viewer.profile.display_name}</p>
+          <Link href="/" className="block text-xs text-subtle hover:text-fg">← กลับเว็บไซต์</Link>
+          <form action={signOut}>
+            <button className="flex items-center gap-1.5 text-xs text-red-300 hover:text-red-200"><LogOut className="h-3.5 w-3.5" /> ออกจากระบบ</button>
+          </form>
+        </div>
       </aside>
       <div className="min-w-0 flex-1">
         <div className="border-b border-line bg-surface px-4 py-3 md:hidden">

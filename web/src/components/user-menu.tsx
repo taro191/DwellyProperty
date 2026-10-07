@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LogOut, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/(site)/login/actions";
 import { Avatar } from "@/components/avatar";
@@ -38,12 +39,17 @@ export function UserMenu({ name, avatar, isStaff }: { name: string; avatar: stri
                 {l.label}
               </Link>
             ))}
-            {isStaff && (
-              <Link href="/admin" className="block px-4 py-2 text-accent hover:bg-surface-2">ระบบหลังบ้าน (Admin)</Link>
-            )}
           </nav>
+          {isStaff && (
+            <Link href="/admin" onClick={() => setOpen(false)}
+              className="flex items-center gap-2 border-t border-line px-4 py-2.5 text-sm font-semibold text-accent hover:bg-surface-2">
+              <Shield className="h-4 w-4" /> ระบบหลังบ้าน (Admin)
+            </Link>
+          )}
           <form action={signOut} className="border-t border-line">
-            <button className="w-full px-4 py-2.5 text-left text-sm text-red-300 hover:bg-surface-2">ออกจากระบบ</button>
+            <button className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-red-300 hover:bg-surface-2">
+              <LogOut className="h-4 w-4" /> ออกจากระบบ
+            </button>
           </form>
         </div>
       )}
