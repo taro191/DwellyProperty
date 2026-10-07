@@ -13,7 +13,8 @@
     "db:migrate": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/migrate.ts",
     "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/seed.ts",
     "maintenance": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/maintenance.ts",
-    "dev:db": "tsx --conditions=react-server scripts/dev-db.ts"
+    "dev:db": "tsx --conditions=react-server scripts/dev-db.ts",
+    "admin:create": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/create-admin.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",

@@ -27,8 +27,7 @@
    ```
 3. ตั้ง cron ทุกชั่วโมง: `cd /path/to/web && npm run maintenance`
 4. backup ทั้งฐานข้อมูลและโฟลเดอร์ `STORAGE_DIR` (รูปและเอกสาร)
-5. **สร้าง admin คนแรก:** สมัครสมาชิกผ่านเว็บ แล้วรัน SQL นี้
-   `INSERT INTO staff_members (user_id, role, active, created_at, updated_at) SELECT id, 'super_admin', 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) FROM user WHERE email = 'you@example.com';`
+5. **สร้าง admin คนแรก:** `npm run admin:create -- --email you@example.com --password <รหัสผ่านที่แข็งแรง>`
 
 ข้อควรระวัง:
 - **รันเป็นโปรเซสเดียว:** แชท realtime ใช้ event bus ภายในโปรเซส ถ้าจะใช้ cluster/PM2 หลาย instance ต้องเปลี่ยนเป็น Redis

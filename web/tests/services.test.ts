@@ -229,6 +229,23 @@ describe("trust: commission, verification, reports, moderation", () => {
   });
 });
 
+describe("admin CLI", () => {
+  it("creates a super admin who can sign in with a password, and is idempotent", async () => {
+    const { createAdmin } = await import("../scripts/create-admin");
+    const { verifyPassword } = await import("better-auth/crypto");
+    const first = await createAdmin({ email: "Boss@Example.com", password: "first-password-123" });
+    const again = await createAdmin({ email: "boss@example.com", password: "second-password-456" });
+    expect(first.created).toBe(true);
+    expect(again.created).toBe(false);
+    expect(again.id).toBe(first.id);
+    const [s] = await db.select().from(t.staff_members).where(eq(t.staff_members.user_id, first.id));
+    expect(s.role).toBe("super_admin");
+    const [acc] = await db.select().from(t.account).where(eq(t.account.userId, first.id));
+    expect(await verifyPassword({ hash: acc.password!, password: "second-password-456" })).toBe(true);
+    await expect(createAdmin({ email: "x@example.com", password: "short" })).rejects.toThrow("8");
+  });
+});
+
 describe("billing, maintenance, PDPA", () => {
   it("order price comes from the catalogue; fulfilment is idempotent and features the listing", async () => {
     const p = (await db.select().from(t.properties).where(and(eq(t.properties.owner_id, U.owner), eq(t.properties.status, "active"))))[0];

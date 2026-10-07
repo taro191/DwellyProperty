@@ -60,12 +60,13 @@ SSL/TLS Certificates → Let's Encrypt → ติ๊กให้ redirect HTTP �
 - **Run:** Hourly
 
 ## 7. สร้าง admin คนแรก
-1. สมัครสมาชิกผ่านเว็บ
-2. เปิด Databases → phpMyAdmin แล้วรัน:
-```sql
-INSERT INTO staff_members (user_id, role, active, created_at, updated_at)
-SELECT id, 'super_admin', 1, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3) FROM user WHERE email = 'you@example.com';
+Node.js → Run Node.js commands:
 ```
+run admin:create -- --email you@example.com --password <รหัสผ่านที่แข็งแรง>
+```
+- ใช้รหัสผ่านยาวและเดายาก เพราะบัญชีนี้มีสิทธิ์ทุกอย่างในหลังบ้าน
+- รันซ้ำได้: ถ้ามีบัญชีอยู่แล้ว จะตั้งรหัสผ่านใหม่และให้สิทธิ์ admin
+- ใช้ `--role moderator|verifier|support|finance` เพื่อสร้างทีมงานบทบาทอื่น
 
 ## อัปเดตเวอร์ชันใหม่
 1. push ขึ้น GitHub → ใน Plesk: Git → **Pull now** (หรือตั้ง webhook ให้ดึงอัตโนมัติ)
