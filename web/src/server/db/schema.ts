@@ -11,7 +11,7 @@
  */
 import { randomUUID } from "node:crypto";
 import {
-  boolean, customType, date, decimal, index, int, json, mysqlEnum, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar, bigint,
+  boolean, customType, date, decimal, index, int, mysqlEnum, mysqlTable, primaryKey, smallint, text, uniqueIndex, varchar, bigint,
 } from "drizzle-orm/mysql-core";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +32,17 @@ const dateTime = customType<{ data: Date; driverData: string }>({
   fromDriver: (v) => new Date(toIso(String(v))),
   toDriver: (v) => toMysql(v),
 });
+
+/**
+ * JSON column that also works on MariaDB, where JSON is LONGTEXT and the driver
+ * returns a string instead of a parsed value.
+ */
+const json = (name: string) =>
+  customType<{ data: unknown; driverData: string }>({
+    dataType: () => "json",
+    toDriver: (v) => JSON.stringify(v),
+    fromDriver: (v) => (typeof v === "string" ? JSON.parse(v) : v),
+  })(name);
 
 export const nowIso = () => new Date().toISOString();
 const id = () => varchar("id", { length: 36 }).primaryKey().$defaultFn(() => randomUUID());
