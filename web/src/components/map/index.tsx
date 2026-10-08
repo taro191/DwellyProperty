@@ -8,4 +8,6 @@ const loading = () => <div className="h-full w-full animate-pulse rounded-3xl bg
 export const ListingsMap = dynamic(() => import("./listings-map"), { ssr: false, loading });
 export const LocationPicker = dynamic(() => import("./location-picker"), { ssr: false, loading });
 export const SingleLocationMap = dynamic(() => import("./single-location"), { ssr: false, loading });
+export const PinMap = dynamic(() => import("./pin-map"), { ssr: false, loading });
 export type { MapPoint } from "./listings-map";
+export type { PinPoint } from "./pin-map";

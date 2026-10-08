@@ -330,6 +330,22 @@ export const inquiries = mysqlTable("inquiries", {
   updated_at: updatedAt(),
 }, (t) => [index("inquiries_seller_idx").on(t.seller_id, t.created_at), index("inquiries_buyer_idx").on(t.buyer_id, t.created_at)]);
 
+/** "Looking for…" posts from buyers/tenants (design: Buyer Center reverse match). */
+export const buyer_requests = mysqlTable("buyer_requests", {
+  id: id(),
+  user_id: ref("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  deal: mysqlEnum("deal", ["buy", "rent"]).notNull(),
+  category: mysqlEnum("category", CATEGORIES).notNull(),
+  province: varchar("province", { length: 80 }).notNull(),
+  area: varchar("area", { length: 120 }).notNull(),
+  max_budget: money("max_budget").notNull(),
+  min_size: int("min_size"),
+  criteria: text("criteria"),
+  status: mysqlEnum("status", ["active", "closed"]).notNull().default("active"),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+}, (t) => [index("buyer_requests_user_idx").on(t.user_id, t.created_at), index("buyer_requests_status_idx").on(t.status, t.province)]);
+
 export const appointments = mysqlTable("appointments", {
   id: id(),
   property_id: ref("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),

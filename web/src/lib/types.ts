@@ -254,3 +254,18 @@ export interface Plan {
 export type ActionResult<T = unknown> =
   | { ok: true; data?: T; message?: string }
   | { ok: false; error: string; fieldErrors?: Record<string, string[]> };
+
+export interface BuyerRequest {
+  id: string;
+  user_id: string;
+  deal: "buy" | "rent";
+  category: PropertyCategory;
+  province: string;
+  area: string;
+  max_budget: number;
+  min_size: number | null;
+  criteria: string | null;
+  status: "active" | "closed";
+  created_at: string;
+  updated_at: string;
+}

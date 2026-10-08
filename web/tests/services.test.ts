@@ -17,6 +17,7 @@ let trust: typeof import("@/server/services/trust");
 let admin: typeof import("@/server/services/admin");
 let account: typeof import("@/server/services/account");
 let billing: typeof import("@/server/services/billing");
+let requests: typeof import("@/server/services/requests");
 let U: Record<string, string>;
 
 async function actor(key: string): Promise<Actor> {
@@ -45,10 +46,10 @@ beforeAll(async () => {
   await runMigrations(process.env.DATABASE_URL);
   ({ db } = await import("@/server/db"));
   t = await import("@/server/db/schema");
-  [listings, deals, chat, trust, admin, account, billing] = await Promise.all([
+  [listings, deals, chat, trust, admin, account, billing, requests] = await Promise.all([
     import("@/server/services/listings"), import("@/server/services/deals"), import("@/server/services/chat"),
     import("@/server/services/trust"), import("@/server/services/admin"), import("@/server/services/account"),
-    import("@/server/services/billing"),
+    import("@/server/services/billing"), import("@/server/services/requests"),
   ]);
   const { seed } = await import("../scripts/seed");
   U = (await seed({ activity: false }))!; // sample activity is covered by seed.test.ts
@@ -347,6 +348,21 @@ describe("billing, maintenance, PDPA", () => {
     const stats = await account.profileStats(await actor("buyer"));
     expect(stats.saved).toBeGreaterThanOrEqual(0);
     await account.setPrimaryRole(await actor("buyer"), "buyer");
+  });
+
+  it("buyer requests: match live listings, only the poster can close, others see open ones", async () => {
+    const p = await someListing();
+    const id = await requests.createBuyerRequest(await actor("tenant"), {
+      deal: "buy", category: p.category, province: p.province, area: "ทดสอบ", max_budget: Number(p.sale_price ?? 0) + 1,
+    });
+    const [mine] = await requests.myBuyerRequests(await actor("tenant"));
+    expect(mine.id).toBe(id);
+    expect(mine.matched).toBeGreaterThanOrEqual(1);
+    expect((await requests.matchesForRequest(await actor("tenant"), id)).map((r) => r.code)).toContain(p.code);
+    expect((await requests.openBuyerRequests(await actor("agent"))).some((r) => r.id === id)).toBe(true);
+    await expect(requests.closeBuyerRequest(await actor("buyer"), id)).rejects.toThrow();
+    await requests.closeBuyerRequest(await actor("tenant"), id);
+    expect((await requests.openBuyerRequests(await actor("agent"))).some((r) => r.id === id)).toBe(false);
   });
 
   it("deletion anonymises the account and removes the login", async () => {

@@ -49,6 +49,9 @@ export interface ListingView {
   zoneId: string | null;
   inPod: boolean;
   views: number;
+  /** Map position; rounded to ~1 km when the owner hides the exact location. */
+  lat: number | null;
+  lng: number | null;
   matchScore: number;
   /** No move-in date, or it has passed. */
   readyToMove: boolean;
@@ -116,6 +119,8 @@ export function toListingView(p: PropertyWithMedia): ListingView {
     zoneId: p.zone_id,
     inPod: Boolean(p.pod_id),
     views: p.views_count,
+    lat: p.lat == null ? null : p.show_exact_location ? Number(p.lat) : Math.round(Number(p.lat) * 100) / 100,
+    lng: p.lng == null ? null : p.show_exact_location ? Number(p.lng) : Math.round(Number(p.lng) * 100) / 100,
     matchScore: matchScore(p),
     readyToMove: !p.available_from || new Date(p.available_from) <= new Date(),
     availableFrom: p.available_from,

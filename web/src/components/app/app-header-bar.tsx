@@ -34,12 +34,13 @@ function headerFor(path: string): HeaderConfig | null {
     "/messages": { title: "ข้อความ (Dwelly Inbox)" },
     "/notifications": { title: "การแจ้งเตือน (Notifications)", showSearch: false },
     "/hubs": {},
+    "/map": { title: "Dwelly Map" },
     "/pass": { title: "Your Dwelly Pass" },
     "/activities": { title: "ตารางกิจกรรม (Events)" },
     "/login": { title: "เข้าสู่ระบบ / สมัครสมาชิก", back: true, showSearch: false },
   };
   if (exact[path]) return exact[path];
-  if (path.startsWith("/property/") || path.startsWith("/zones/") || path.startsWith("/messages/")) return null;
+  if (path === "/plans" || path.startsWith("/property/") || path.startsWith("/zones/") || path.startsWith("/messages/")) return null;
   return { back: true };
 }
 
