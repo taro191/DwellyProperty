@@ -1,6 +1,7 @@
 /**
  * Demo data from the design prototype (local/staging only — never run on production).
  * Usage: npm run db:seed      Demo accounts: <role>@dwelly.local / Dwelly@1234
+ * Production test accounts: npm run seed:test (scripts/seed-test.ts) — same data, other emails and a random password.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -9,6 +10,7 @@ import { hashPassword } from "better-auth/crypto";
 import { db } from "@/server/db";
 import * as t from "@/server/db/schema";
 import type { LandDetailsJson } from "@/server/db/schema";
+import { seedActivity } from "./seed-activity";
 
 const DAY = 86_400_000;
 const iso = (ms = 0) => new Date(Date.now() + ms).toISOString();
@@ -34,7 +36,20 @@ const USERS = [
   ["agent", "agent@dwelly.local", "วรภพ ชัยสิทธิ์", "agent"],
   ["buyer", "buyer@dwelly.local", "ณัฐนนท์ (ผู้ซื้อทดสอบ)", "buyer"],
   ["owner2", "owner2@dwelly.local", "คุณนพดล (เจ้าของบ้านให้เช่า)", "owner"],
+  ["tenant", "tenant@dwelly.local", "กมลชนก (ผู้เช่าทดสอบ)", "tenant"],
+  ["investor", "investor@dwelly.local", "ธนกฤต (นักลงทุนทดสอบ)", "investor"],
+  ["verifier", "verifier@dwelly.local", "ทีมตรวจเอกสาร Dwelly", "buyer"],
+  ["support", "support@dwelly.local", "ทีมซัพพอร์ต Dwelly", "buyer"],
+  ["finance", "finance@dwelly.local", "ทีมการเงิน Dwelly", "buyer"],
 ] as const;
+
+export interface SeedOptions {
+  /** Email for a user key (default `<key>@dwelly.local`). */
+  email?: (key: string) => string;
+  password?: string;
+  /** Also create sample activity (inquiries, chats, orders, review queues…). Default true. */
+  activity?: boolean;
+}
 
 const GEO: [RegExp, string, string, number, number][] = [
   [/Asoke|อโศก/, "กรุงเทพมหานคร", "วัฒนา", 13.7376, 100.5604],
@@ -60,9 +75,10 @@ const QUOTAS: Record<string, Record<string, unknown>> = {
 };
 const BOOST: Record<string, [number, string]> = { "boost-24h": [1, "top_rank"], "boost-7d": [7, "hot_deal"], "boost-spotlight": [14, "spotlight_banner"], "boost-combo": [30, "featured"] };
 
-export async function seed() {
+export async function seed(opts: SeedOptions = {}) {
+  const emailFor = opts.email ?? ((key: string) => `${key}@dwelly.local`);
   const src = JSON.parse(readFileSync(path.join(process.cwd(), "scripts", "seed-data.json"), "utf8")) as Src;
-  const [existing] = await db.select({ id: t.user.id }).from(t.user).where(eq(t.user.email, "admin@dwelly.local")).limit(1);
+  const [existing] = await db.select({ id: t.user.id }).from(t.user).where(eq(t.user.email, emailFor("admin"))).limit(1);
   if (existing) {
     console.log("seed: demo data already present — skipping");
     return;
@@ -70,8 +86,9 @@ export async function seed() {
 
   // Users + credential accounts hashed with the Better Auth hasher (same as real sign-ups).
   const U: Record<string, string> = {};
-  const hash = await hashPassword(PASSWORD);
-  for (const [key, email, name, role] of USERS) {
+  const hash = await hashPassword(opts.password ?? PASSWORD);
+  for (const [key, , name, role] of USERS) {
+    const email = emailFor(key);
     const id = crypto.randomUUID();
     const now = new Date();
     U[key] = id;
@@ -81,16 +98,21 @@ export async function seed() {
     await db.insert(t.user_roles).values([...new Set<(typeof t.APP_ROLES)[number]>(["buyer", role])].map((r) => ({ user_id: id, role: r })));
     for (const kind of ["terms", "privacy"] as const) await db.insert(t.consents).values({ user_id: id, kind, version: "2026-10-01", granted: true });
   }
-  await db.insert(t.staff_members).values([{ user_id: U.admin, role: "super_admin" }, { user_id: U.moderator, role: "moderator" }]);
+  await db.insert(t.staff_members).values([
+    { user_id: U.admin, role: "super_admin" }, { user_id: U.moderator, role: "moderator" },
+    { user_id: U.verifier, role: "verifier" }, { user_id: U.support, role: "support" }, { user_id: U.finance, role: "finance" },
+  ]);
   await db.update(t.profiles).set({ phone: "081-888-9922", phone_verified: true, line_id: "worapop.agent", is_kyc_verified: true, kyc_verified_at: iso() }).where(eq(t.profiles.id, U.agent));
   await db.update(t.profiles).set({ phone: "089-222-3344", line_id: "patcharida", is_kyc_verified: true, kyc_verified_at: iso() }).where(eq(t.profiles.id, U.owner));
   await db.update(t.profiles).set({ phone: "084-555-1234" }).where(eq(t.profiles.id, U.owner2));
+  await db.update(t.profiles).set({ phone: "086-111-2233", bio: "นักศึกษาปริญญาโท หาคอนโดใกล้ ม.มหิดล" }).where(eq(t.profiles.id, U.tenant));
+  await db.update(t.profiles).set({ phone: "082-777-8899", line_id: "thanakrit.inv", is_kyc_verified: true, kyc_verified_at: iso(), bio: "ลงทุนที่ดินและคอนโดปล่อยเช่า" }).where(eq(t.profiles.id, U.investor));
   await db.insert(t.agent_profiles).values({
     user_id: U.agent, agent_code: "AG1001", english_name: "Worapop Chaisit", title: "Senior Certified Real Estate Specialist",
     company_name: "Salaya Prime Estate", license_no: "TREBA-2025-0148", license_verified: true, experience_years: 8,
     specialized_categories: ["condo", "land"], rating_avg: 4.95, rating_count: 36, closed_deals: 48,
   });
-  await db.insert(t.counters).values({ name: "agent_code", value: 1001 });
+  await db.insert(t.counters).values({ name: "agent_code", value: 1001 }).onDuplicateKeyUpdate({ set: { value: 1001 } });
 
   // Zones, plans, boosts
   const zoneIds: Record<string, string> = {};
@@ -162,7 +184,7 @@ export async function seed() {
       await db.insert(t.commission_programs).values({ property_id: id, sale_rate_pct: 3, rent_month1_rate_pct: p.commissionBaseRate ?? 100, rent_month2_rate_pct: 50, rent_month3_plus_rate_pct: 25, renewal_rate_pct: 25 });
     }
   }
-  await db.insert(t.counters).values({ name: "property_code", value: 1000 + n });
+  await db.insert(t.counters).values({ name: "property_code", value: 1000 + n }).onDuplicateKeyUpdate({ set: { value: 1000 + n } });
 
   // Hub + activities
   const hubId = crypto.randomUUID();
@@ -179,6 +201,7 @@ export async function seed() {
     { key: "listing_duration_days", value: 90 },
     { key: "support_contact", value: { line_oa: "@dwelly", email: "support@dwelly.co" } },
   ]);
+  if (opts.activity !== false) await seedActivity(U);
   console.log(`seed: ${USERS.length} users, ${n} listings, ${Object.keys(zoneIds).length} zones, ${src.plans.length} plans`);
   return U;
 }

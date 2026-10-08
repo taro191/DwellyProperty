@@ -51,7 +51,7 @@ beforeAll(async () => {
     import("@/server/services/billing"),
   ]);
   const { seed } = await import("../scripts/seed");
-  U = (await seed())!;
+  U = (await seed({ activity: false }))!; // sample activity is covered by seed.test.ts
 });
 
 afterAll(async () => {

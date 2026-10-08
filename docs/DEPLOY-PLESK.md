@@ -76,3 +76,11 @@ run admin:create -- --email you@example.com --password <รหัสผ่าน
 
 ## ข้อมูลทดสอบ (ห้ามใช้บนเว็บจริง)
 `run db:seed` จะสร้างบัญชีทดสอบ `*@dwelly.local` ที่ใช้รหัสผ่านเดียวกันทั้งหมด จึงใช้ได้เฉพาะ staging
+
+## Test accounts (testing phase only)
+
+`run seed:test -- --domain dwellyproperty.yaydang.com` creates one account per user type
+(`test.<type>@<domain>`: buyer, tenant, owner, owner2, investor, agent, admin, moderator, verifier,
+support, finance) with the demo listings and sample activity, and prints a random shared password once.
+It only runs on a database without the demo data. Remove or disable these accounts before launch
+(Admin → ผู้ใช้ → ปิดการเข้าสู่ระบบ).
