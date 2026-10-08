@@ -1,5 +1,5 @@
 import { coverUrl, isFeatured } from "@/lib/format";
-import type { ListingType, PropertyCategory, PropertyWithMedia } from "@/lib/types";
+import type { Furnishing, ListingType, PropertyCategory, PropertyWithMedia } from "@/lib/types";
 
 /** Prototype regions (design: `he`) used by the region dropdowns. */
 export const REGIONS = [
@@ -46,9 +46,26 @@ export interface ListingView {
   verified: boolean;
   isBoosted: boolean;
   sellerType: "owner" | "agency";
+  zoneId: string | null;
+  inPod: boolean;
+  views: number;
   matchScore: number;
+  /** No move-in date, or it has passed. */
+  readyToMove: boolean;
+  availableFrom: string | null;
+  furnishing: Furnishing | null;
+  petsAllowed: boolean;
   createdAt: string;
-  land: { rai: number; ngan: number; sqWa: number; totalSqWa: number; pricePerSqWa: number; deedType: string | null; zoning: string | null } | null;
+  land: {
+    rai: number;
+    ngan: number;
+    sqWa: number;
+    totalSqWa: number;
+    pricePerSqWa: number;
+    deedType: string | null;
+    zoning: string | null;
+    roadFrontage: number | null;
+  } | null;
 }
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&q=80";
@@ -96,7 +113,14 @@ export function toListingView(p: PropertyWithMedia): ListingView {
     verified: p.is_verified,
     isBoosted: isFeatured(p),
     sellerType: p.agent_id ? "agency" : "owner",
+    zoneId: p.zone_id,
+    inPod: Boolean(p.pod_id),
+    views: p.views_count,
     matchScore: matchScore(p),
+    readyToMove: !p.available_from || new Date(p.available_from) <= new Date(),
+    availableFrom: p.available_from,
+    furnishing: p.furnishing,
+    petsAllowed: Boolean(p.pets_allowed),
     createdAt: p.published_at ?? p.created_at,
     land:
       p.category === "land"
@@ -108,6 +132,7 @@ export function toListingView(p: PropertyWithMedia): ListingView {
             pricePerSqWa: p.land_details.price_per_sqwa ?? (sqwa > 0 && sale ? Math.round(sale / sqwa) : 0),
             deedType: p.land_details.deed_type ?? null,
             zoning: p.land_details.zoning ?? null,
+            roadFrontage: p.land_details.road_frontage_m ?? null,
           }
         : null,
   };

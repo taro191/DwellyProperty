@@ -33,7 +33,7 @@ function headerFor(path: string): HeaderConfig | null {
     "/me": { title: "โปรไฟล์ผู้ใช้งาน (Profile)", showSearch: false },
   };
   if (exact[path]) return exact[path];
-  if (path.startsWith("/property/")) return null;
+  if (path.startsWith("/property/") || path.startsWith("/zones/")) return null;
   return { back: true };
 }
 

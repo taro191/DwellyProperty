@@ -1,6 +1,10 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { loadScreenListings } from "../data";
+import { RentScreen } from "./rent-screen";
 
-// Placeholder until this screen is rebuilt from the prototype.
-export default function Page() {
-  redirect("/search?type=rent");
+export const metadata: Metadata = { title: "เช่าอสังหาริมทรัพย์" };
+
+export default async function RentPage() {
+  const { properties, savedIds, signedIn } = await loadScreenListings({ type: "rent" });
+  return <RentScreen properties={properties} savedIds={savedIds} signedIn={signedIn} />;
 }

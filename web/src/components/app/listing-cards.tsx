@@ -171,17 +171,19 @@ export function ListingGridCard({ property: s, isSaved = false, onToggleSave, on
           )}
         </div>
         <div className="absolute top-1.5 right-1.5 flex items-center gap-1 z-10">
+          {onShare && (
           <button
             type="button"
             onClick={(e) => {
               stop(e);
-              onShare?.(s);
+              onShare(s);
             }}
             className="w-7 h-7 rounded-full flex items-center justify-center bg-black/60 hover:bg-[#06C755] text-white transition-colors cursor-pointer shadow-sm active:scale-95"
             title="แชร์เข้า LINE / โซเชียล"
           >
             <Share2 className="w-3.5 h-3.5" />
           </button>
+          )}
           <button
             type="button"
             onClick={(e) => {

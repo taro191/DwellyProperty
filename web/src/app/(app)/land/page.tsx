@@ -1,6 +1,10 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { loadScreenListings } from "../data";
+import { LandScreen } from "./land-screen";
 
-// Placeholder until this screen is rebuilt from the prototype.
-export default function Page() {
-  redirect("/search?category=land");
+export const metadata: Metadata = { title: "ที่ดิน" };
+
+export default async function LandPage() {
+  const { properties, savedIds, signedIn } = await loadScreenListings({ category: "land" });
+  return <LandScreen properties={properties} savedIds={savedIds} signedIn={signedIn} />;
 }

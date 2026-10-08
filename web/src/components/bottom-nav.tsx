@@ -18,11 +18,11 @@ const WITH_NAV = ["/", "/buyer-center", "/zones", "/land", "/buy", "/rent", "/me
 /** Bottom tab bar (design: `Nm`). */
 export function BottomNav() {
   const path = usePathname();
-  if (!WITH_NAV.includes(path)) return null;
+  if (!WITH_NAV.includes(path) && !path.startsWith("/zones/")) return null;
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 min-h-16 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-[var(--surface)]/95 border-t border-[var(--border)] max-w-md mx-auto shadow-2xl backdrop-blur-md">
       {ITEMS.map(({ href, icon: Icon, label }) => {
-        const active = path === href;
+        const active = path === href || (href === "/zones" && path.startsWith("/zones/"));
         return (
           <Link
             key={href}

@@ -1,6 +1,9 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { loadZonesScreen } from "../data";
+import { ZonesScreen } from "./zones-screen";
 
-// Placeholder until this screen is rebuilt from the prototype.
-export default function Page() {
-  redirect("/hubs");
+export const metadata: Metadata = { title: "Dwelly Zone" };
+
+export default async function ZonesPage() {
+  return <ZonesScreen {...await loadZonesScreen()} selected={null} />;
 }
