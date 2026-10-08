@@ -8,9 +8,9 @@ import { Alert, Badge, Card, Field, Input, PageHeader, Select, Textarea, buttonC
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
 import { CATEGORY_LABEL } from "@/lib/constants";
 import { formatTHB } from "@/lib/format";
-import { createPod, requestPartnerAccess, saveAgentProfile } from "./actions";
+import { createPod, requestPartnerAccess, saveAgentProfile } from "../actions";
 
-export const metadata: Metadata = { title: "นายหน้า & Co-Agent" };
+export const metadata: Metadata = { title: "โปรไฟล์นายหน้า & Co-Agent" };
 
 export default async function AgentPage() {
   const viewer = await requireViewer("/dashboard/agent");

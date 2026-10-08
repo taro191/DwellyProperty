@@ -35,7 +35,9 @@ function headerFor(path: string): HeaderConfig | null {
     "/notifications": { title: "การแจ้งเตือน (Notifications)", showSearch: false },
     "/hubs": {},
     "/dashboard": { title: "Seller & Landlord Center" },
+    "/dashboard/agent": { title: "Agency Pro Dashboard" },
     "/dashboard/agent/collab": { title: "Agency-Owner Collab", back: "/dashboard/agent", showSearch: false },
+    "/dashboard/commission": { title: "ระบบ Dwelly Commission", back: true, showSearch: false },
     "/dashboard/collab": { title: "ศูนย์บริหารนายหน้า (Owner-Agent Hub)", back: "/dashboard", showSearch: false },
     "/map": { title: "Dwelly Map" },
     "/pass": { title: "Your Dwelly Pass" },
@@ -43,7 +45,7 @@ function headerFor(path: string): HeaderConfig | null {
     "/login": { title: "เข้าสู่ระบบ / สมัครสมาชิก", back: true, showSearch: false },
   };
   if (exact[path]) return exact[path];
-  if (path === "/plans" || path.startsWith("/property/") || path.startsWith("/zones/") || path.startsWith("/messages/")) return null;
+  if (path === "/plans" || path === "/dashboard/listings/new" || path.startsWith("/property/") || path.startsWith("/zones/") || path.startsWith("/messages/")) return null;
   return { back: true };
 }
 

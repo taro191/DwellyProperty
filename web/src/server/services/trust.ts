@@ -304,3 +304,65 @@ export async function commissionForViewer(actor: Actor | null, propertyId: strin
   if (!mine && !(actor.roles.includes("agent") && (await hasCommissionAccess(actor, propertyId)))) return null;
   return { ...row.c, via: row.p.owner_id === actor.id ? ("owner" as const) : ("dwelly" as const) };
 }
+
+/** Members of the actor's pods with their listing and deal counts (design: Agency Dashboard "ทีมงานนายหน้า"). */
+export async function podTeam(actor: Actor) {
+  const mine = await myPods(actor);
+  if (!mine.length) return [];
+  const ids = mine.map((m) => m.pod.id);
+  const rows = await db.select({
+    pod_id: pod_members.pod_id, role: pod_members.role, user_id: profiles.id, name: profiles.display_name, avatar: profiles.avatar_url,
+    closed: agent_profiles.closed_deals,
+    listings: sql<number>`(select count(*) from ${properties} p where p.agent_id = ${pod_members.user_id} and p.status = 'active')`,
+    leads: sql<number>`(select count(*) from inquiries i where i.seller_id = ${pod_members.user_id})`,
+  }).from(pod_members).innerJoin(profiles, eq(profiles.id, pod_members.user_id))
+    .leftJoin(agent_profiles, eq(agent_profiles.user_id, pod_members.user_id))
+    .where(inArray(pod_members.pod_id, ids));
+  return rows.map((r) => ({ ...r, closed: r.closed ?? 0, listings: Number(r.listings), leads: Number(r.leads) }));
+}
+
+/** The owner's listings with their Co-Agent programme and agents' access requests (design: Dwelly Commission). */
+export async function ownerCommissionOverview(actor: Actor) {
+  const rows = await db.select({ p: properties, c: commission_programs }).from(properties)
+    .leftJoin(commission_programs, eq(commission_programs.property_id, properties.id))
+    .where(and(eq(properties.owner_id, actor.id), inArray(properties.status, ["active", "reserved", "pending_review", "draft"])))
+    .orderBy(desc(properties.updated_at));
+  if (!rows.length) return [];
+  const requests = await db.select({ r: car, agent_name: profiles.display_name, agent_code: agent_profiles.agent_code }).from(car)
+    .innerJoin(profiles, eq(profiles.id, car.agent_id)).leftJoin(agent_profiles, eq(agent_profiles.user_id, car.agent_id))
+    .where(inArray(car.property_id, rows.map((r) => r.p.id))).orderBy(desc(car.created_at));
+  return rows.map(({ p, c }) => ({
+    property: p, program: c,
+    requests: requests.filter((x) => x.r.property_id === p.id).map((x) => ({ ...x.r, agent_name: x.agent_name, agent_code: x.agent_code })),
+  }));
+}
+
+/** Listings with an enabled Co-Agent programme an agent may ask to join (rates stay hidden until approved). */
+export async function openCommissionListings(actor: Actor, limit = 50) {
+  requireActive(actor);
+  const asked = await db.select({ pid: car.property_id, status: car.status }).from(car).where(eq(car.agent_id, actor.id));
+  const rows = await db.select({ id: properties.id, owner_id: properties.owner_id, code: properties.code, title: properties.title, province: properties.province, category: properties.category })
+    .from(commission_programs).innerJoin(properties, eq(properties.id, commission_programs.property_id))
+    .where(and(eq(commission_programs.enabled, true), eq(properties.status, "active"))).orderBy(desc(properties.updated_at)).limit(limit);
+  return rows.filter((r) => r.owner_id !== actor.id).map((r) => ({ id: r.id, code: r.code, title: r.title, province: r.province, category: r.category, request: asked.find((a) => a.pid === r.id)?.status ?? null }));
+}
+
+/** An agent asks a listing owner for Co-Agent access to one listing. */
+export async function requestListingAccess(actor: Actor, propertyId: string, message?: string) {
+  requireActive(actor);
+  if (!actor.roles.includes("agent")) throw forbidden("เฉพาะบัญชีนายหน้าเท่านั้น");
+  const [row] = await db.select({ p: properties, c: commission_programs }).from(properties)
+    .innerJoin(commission_programs, eq(commission_programs.property_id, properties.id)).where(eq(properties.id, propertyId)).limit(1);
+  if (!row || !row.c.enabled || row.p.status !== "active") throw new AppError("ประกาศนี้ไม่ได้เปิดรับ Co-Agent");
+  if (row.p.owner_id === actor.id) throw new AppError("นี่คือประกาศของคุณ");
+  const [existing] = await db.select({ status: car.status }).from(car)
+    .where(and(eq(car.agent_id, actor.id), eq(car.property_id, propertyId), inArray(car.status, ["pending", "approved"]))).limit(1);
+  if (existing) throw new AppError(existing.status === "approved" ? "คุณได้รับสิทธิ์แล้ว" : "ส่งคำขอไปแล้ว รอเจ้าของพิจารณา");
+  await db.transaction(async (tx) => {
+    const id = crypto.randomUUID();
+    await tx.insert(car).values({ id, agent_id: actor.id, property_id: propertyId, message: message?.trim().slice(0, 1000) || null });
+    await notify(tx, row.p.owner_id, {
+      type: "commission", title: "นายหน้าขอสิทธิ์ Co-Agent", body: row.p.title, link: "/dashboard/commission?tab=permissions", entityType: "commission_access", entityId: id,
+    });
+  });
+}

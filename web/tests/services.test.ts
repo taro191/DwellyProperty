@@ -390,6 +390,21 @@ describe("billing, maintenance, PDPA", () => {
     expect((await collab.agentAssignments(await actor("investor"))).some((x) => x.property.id === p.id)).toBe(false);
   });
 
+  it("co-agent: agents ask per listing, the owner sees and decides the request", async () => {
+    const p = (await db.select().from(t.properties).where(and(eq(t.properties.owner_id, U.owner), eq(t.properties.status, "active")))).find((x) => !x.agent_id)!;
+    await trust.saveCommission(await actor("owner"), { property_id: p.id, enabled: true, sale_rate_pct: 3, rent_month1_rate_pct: 100 });
+    const open = await trust.openCommissionListings(await actor("agent"));
+    expect(open.some((o) => o.id === p.id)).toBe(true);
+    await expect(trust.requestListingAccess(await actor("buyer"), p.id)).rejects.toThrow();
+    await trust.requestListingAccess(await actor("agent"), p.id, "ขอดูแลงานนี้");
+    await expect(trust.requestListingAccess(await actor("agent"), p.id)).rejects.toThrow("ส่งคำขอไปแล้ว");
+    const overview = await trust.ownerCommissionOverview(await actor("owner"));
+    const req = overview.find((o) => o.property.id === p.id)!.requests[0];
+    expect(req.agent_id).toBe(U.agent);
+    await trust.decideCommissionAccess(await actor("owner"), req.id, "approved");
+    expect(await trust.hasCommissionAccess(await actor("agent"), p.id)).toBe(true);
+  });
+
   it("deletion anonymises the account and removes the login", async () => {
     const buyer = await actor("buyer");
     await account.requestDeletion(buyer, "test");

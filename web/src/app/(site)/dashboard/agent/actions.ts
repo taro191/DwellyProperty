@@ -21,7 +21,7 @@ export async function saveAgentProfile(fd: FormData): Promise<ActionResult> {
   const parsed = profileSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
   const r = await attempt(() => trust.saveAgentProfile(viewer, parsed.data), "บันทึกโปรไฟล์นายหน้าแล้ว");
-  revalidatePath("/dashboard/agent");
+  revalidatePath("/dashboard/agent", "layout");
   return r;
 }
 
@@ -29,7 +29,7 @@ export async function requestPartnerAccess(fd: FormData): Promise<ActionResult> 
   const viewer = await requireViewer("/dashboard/agent");
   const message = String(fd.get("message") ?? "").trim().slice(0, 1000) || undefined;
   const r = await attempt(() => trust.requestPartnerAccess(viewer, message), "ส่งคำขอแล้ว ทีมงานจะตรวจสอบใบอนุญาตและแจ้งผลทางการแจ้งเตือน");
-  revalidatePath("/dashboard/agent");
+  revalidatePath("/dashboard/agent", "layout");
   return r;
 }
 
@@ -44,6 +44,6 @@ export async function createPod(fd: FormData): Promise<ActionResult> {
   const parsed = podSchema.safeParse(formObject(fd));
   if (!parsed.success) return invalid(parsed.error);
   const r = await attempt(() => trust.createPod(viewer, parsed.data), "สร้าง Pod แล้ว รอทีมงานตรวจสอบเพื่อรับป้าย Verified Pod");
-  revalidatePath("/dashboard/agent");
+  revalidatePath("/dashboard/agent", "layout");
   return r;
 }

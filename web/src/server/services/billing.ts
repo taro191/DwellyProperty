@@ -59,3 +59,11 @@ export async function fulfillOrder(orderId: string, provider: string, providerRe
     await audit(tx, o.user_id, "ORDER_PAID", "orders", o.id, "Payment confirmed", { provider, ref: providerRef, amount: o.amount_thb });
   });
 }
+
+/** The member's current paid plan, if any. */
+export async function activePlan(actor: Actor) {
+  const [row] = await db.select({ name: plans.name, id: plans.id, ends: subscriptions.current_period_end }).from(subscriptions)
+    .innerJoin(plans, eq(plans.id, subscriptions.plan_id))
+    .where(and(eq(subscriptions.user_id, actor.id), eq(subscriptions.status, "active"))).orderBy(sql`${subscriptions.created_at} desc`).limit(1);
+  return row ?? null;
+}
