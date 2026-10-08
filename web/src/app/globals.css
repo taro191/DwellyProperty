@@ -14,6 +14,11 @@
   --warning: #f59e0b;
   --danger: #ef4444;
   --info: #38bdf8;
+  /* Prototype token names, so its class strings (text-[var(--text-primary)] …) port verbatim. */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --success: #10b981;
+  --error: #ef4444;
   color-scheme: dark;
 }
 
@@ -32,6 +37,44 @@
   --color-info: var(--info);
   --font-sans: var(--font-inter), var(--font-thai), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Pages not yet rebuilt from the prototype sit in a phone-width column (.phone-layout): keep them on
+   their mobile layout there, whatever the window width. Elsewhere (admin) breakpoints work as usual. */
+@custom-variant sm {
+  @media (width >= 40rem) {
+    &:not(:where(.phone-layout, .phone-layout *)) {
+      @slot;
+    }
+  }
+}
+@custom-variant md {
+  @media (width >= 48rem) {
+    &:not(:where(.phone-layout, .phone-layout *)) {
+      @slot;
+    }
+  }
+}
+@custom-variant lg {
+  @media (width >= 64rem) {
+    &:not(:where(.phone-layout, .phone-layout *)) {
+      @slot;
+    }
+  }
+}
+@custom-variant xl {
+  @media (width >= 80rem) {
+    &:not(:where(.phone-layout, .phone-layout *)) {
+      @slot;
+    }
+  }
+}
+@custom-variant 2xl {
+  @media (width >= 96rem) {
+    &:not(:where(.phone-layout, .phone-layout *)) {
+      @slot;
+    }
+  }
 }
 
 html {
@@ -63,6 +106,98 @@ body {
   filter: brightness(0.75) contrast(1.1) saturate(0.6);
 }
 
+/* ---- Prototype (design/public/dwelly.min.html) global styles ---- */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+body {
+  touch-action: manipulation;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0f12;
+}
+::-webkit-scrollbar-thumb {
+  background: #232c37;
+  border-radius: 9999px;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
 .pb-safe {
-  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.pb-safe-nav {
+  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+}
+.pb-safe-action {
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.dwelly-logo-stage {
+  animation: dwelly-logo-enter 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.dwelly-logo-shell {
+  position: relative;
+  isolation: isolate;
+  -webkit-backdrop-filter: blur(1.125rem) saturate(1.2);
+  backdrop-filter: blur(1.125rem) saturate(1.2);
+  box-shadow: 0 1.5rem 4rem color-mix(in srgb, var(--accent) 18%, transparent), inset 0 1px 0 color-mix(in srgb, var(--text-primary) 18%, transparent);
+  transition: transform 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+.dwelly-logo-shell:before {
+  content: "";
+  position: absolute;
+  inset: -1.5rem;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent), transparent 68%);
+  filter: blur(0.75rem);
+  animation: dwelly-logo-aura 4s ease-in-out infinite;
+}
+.dwelly-logo-shell:hover {
+  transform: translateY(-0.25rem);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 2rem 4.5rem color-mix(in srgb, var(--accent) 24%, transparent), inset 0 1px 0 color-mix(in srgb, var(--text-primary) 22%, transparent);
+}
+.dwelly-logo-mark {
+  animation: dwelly-mark-enter 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.08s both;
+}
+.dwelly-logo-door {
+  filter: drop-shadow(0 0 0.4rem currentColor);
+  animation: dwelly-door-glow 3s ease-in-out 1s infinite;
+}
+.dwelly-wordmark {
+  animation: dwelly-wordmark-enter 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.16s both;
+}
+@keyframes dwelly-logo-enter {
+  from { opacity: 0; transform: translateY(0.75rem) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes dwelly-mark-enter {
+  from { opacity: 0; transform: scale(0.88); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes dwelly-wordmark-enter {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dwelly-logo-aura {
+  0%, 100% { opacity: 0.55; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+@keyframes dwelly-door-glow {
+  0%, 100% { filter: drop-shadow(0 0 0.25rem currentColor); }
+  50% { filter: drop-shadow(0 0 0.7rem currentColor); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dwelly-logo-stage, .dwelly-logo-shell:before, .dwelly-logo-mark, .dwelly-logo-door, .dwelly-wordmark { animation: none; }
 }
