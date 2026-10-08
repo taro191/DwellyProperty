@@ -1,0 +1,1 @@
+ALTER TABLE `appointments` MODIFY COLUMN `format` enum('onsite','video','phone') NOT NULL DEFAULT 'onsite';

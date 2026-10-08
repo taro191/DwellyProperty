@@ -163,6 +163,10 @@ describe("deals", () => {
     const [after] = await db.select().from(t.appointments).where(eq(t.appointments.id, a.id));
     expect(after.status).toBe("cancelled");
     expect(after.cancelled_by).toBe(U.buyer);
+    // phone consultation is a third appointment format
+    await deals.createAppointment(await actor("tenant"), { property_id: p.id, format: "phone", scheduled_at: new Date(Date.now() + 3 * 86_400_000).toISOString() });
+    const [ph] = await db.select().from(t.appointments).where(and(eq(t.appointments.property_id, p.id), eq(t.appointments.format, "phone")));
+    expect(ph.buyer_id).toBe(U.tenant);
   });
 });
 

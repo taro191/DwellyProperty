@@ -56,7 +56,7 @@ export async function sendInquiry(fd: FormData): Promise<ActionResult> {
 
 const appointmentSchema = z.object({
   property_id: uuid,
-  format: z.enum(["onsite", "video"]),
+  format: z.enum(["onsite", "video", "phone"]),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "เลือกวันที่"),
   time: z.string().regex(/^\d{2}:\d{2}$/, "เลือกเวลา"),
   buyer_note: z.string().trim().max(1000).optional(),

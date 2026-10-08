@@ -292,3 +292,15 @@ export async function latestOwnershipVerification(actor: Actor, propertyId: stri
     .orderBy(desc(verification_requests.submitted_at)).limit(1);
   return r ?? null;
 }
+
+/** The listing's commission programme, if enabled and the actor may see it (owner, listing agent, or approved access). */
+export async function commissionForViewer(actor: Actor | null, propertyId: string) {
+  if (!actor) return null;
+  const [row] = await db.select({ c: commission_programs, p: properties }).from(commission_programs)
+    .innerJoin(properties, eq(properties.id, commission_programs.property_id))
+    .where(and(eq(commission_programs.property_id, propertyId), eq(commission_programs.enabled, true))).limit(1);
+  if (!row) return null;
+  const mine = row.p.owner_id === actor.id || row.p.agent_id === actor.id;
+  if (!mine && !(actor.roles.includes("agent") && (await hasCommissionAccess(actor, propertyId)))) return null;
+  return { ...row.c, via: row.p.owner_id === actor.id ? ("owner" as const) : ("dwelly" as const) };
+}

@@ -335,7 +335,7 @@ export const appointments = mysqlTable("appointments", {
   property_id: ref("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
   buyer_id: ref("buyer_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   seller_id: ref("seller_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
-  format: mysqlEnum("format", ["onsite", "video"]).notNull().default("onsite"),
+  format: mysqlEnum("format", ["onsite", "video", "phone"]).notNull().default("onsite"),
   scheduled_at: isoDatetime("scheduled_at").notNull(),
   duration_min: smallint("duration_min").notNull().default(45),
   status: mysqlEnum("status", ["pending", "confirmed", "declined", "cancelled", "completed", "no_show"]).notNull().default("pending"),

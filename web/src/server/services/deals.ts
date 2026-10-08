@@ -51,7 +51,7 @@ export async function updateInquiry(actor: Actor, id: string, v: { status: Inqui
 // Appointments
 // ---------------------------------------------------------------------------
 export async function createAppointment(actor: Actor, v: {
-  property_id: string; format: "onsite" | "video"; scheduled_at: string; buyer_note?: string;
+  property_id: string; format: "onsite" | "video" | "phone"; scheduled_at: string; buyer_note?: string;
 }) {
   requireActive(actor);
   if (new Date(v.scheduled_at).getTime() < Date.now() + 3_600_000) throw new AppError("กรุณานัดล่วงหน้าอย่างน้อย 1 ชั่วโมง");

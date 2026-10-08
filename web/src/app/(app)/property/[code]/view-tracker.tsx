@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { trackView } from "../actions";
+import { trackView } from "@/app/(site)/property/actions";
 
 /** Counts a view once per mount (server dedupes per user per hour). */
 export function ViewTracker({ propertyId }: { propertyId: string }) {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Video, MapPin } from "lucide-react";
+import { MapPin, Phone, Video } from "lucide-react";
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
 import { Badge, Card, Input, Textarea } from "@/components/ui";
 import { APPOINTMENT_STATUS_LABEL, OFFER_STATUS_LABEL } from "@/lib/constants";
@@ -22,7 +22,7 @@ export function AppointmentCard({ a, side, property, other }: { a: Appointment; 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="flex items-center gap-2 font-semibold">
-            {a.format === "video" ? <Video className="h-4 w-4 text-accent" /> : <MapPin className="h-4 w-4 text-accent" />}
+            {a.format === "video" ? <Video className="h-4 w-4 text-accent" /> : a.format === "phone" ? <Phone className="h-4 w-4 text-accent" /> : <MapPin className="h-4 w-4 text-accent" />}
             {formatDateTime(a.scheduled_at)}
           </p>
           <Link href={`/property/${property?.code}`} className="text-xs text-subtle hover:text-fg">{property?.title}</Link>
