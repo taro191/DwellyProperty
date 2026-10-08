@@ -116,3 +116,14 @@ export async function markNotificationsRead(fd: FormData): Promise<ActionResult>
   revalidatePath("/", "layout");
   return r;
 }
+
+const ROLES = ["buyer", "tenant", "owner", "investor", "agent"] as const;
+
+export async function switchRole(fd: FormData): Promise<ActionResult> {
+  const viewer = await requireViewer("/me");
+  const role = z.enum(ROLES).safeParse(fd.get("role"));
+  if (!role.success) return { ok: false, error: "เลือกบทบาท" };
+  const r = await attempt(() => account.setPrimaryRole(viewer, role.data), "สลับบทบาทแล้ว");
+  revalidatePath("/", "layout");
+  return r;
+}

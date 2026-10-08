@@ -25,7 +25,8 @@ export async function proxy(request: NextRequest) {
     res.cookies.set(INTRO_COOKIE, "1", { maxAge: YEAR, path: "/", sameSite: "lax" });
     return res;
   }
-  if (PROTECTED.some((p) => path === p || path.startsWith(p + "/")) && !getSessionCookie(request)) {
+  // "/me" itself shows a sign-in card to visitors (prototype profile tab); its sub-pages need a session.
+  if (path !== "/me" && PROTECTED.some((p) => path === p || path.startsWith(p + "/")) && !getSessionCookie(request)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = `?next=${encodeURIComponent(path + request.nextUrl.search)}`;

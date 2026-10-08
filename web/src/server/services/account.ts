@@ -1,10 +1,12 @@
 import "server-only";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
 import { db } from "@/server/db";
 import {
-  account_deletion_requests as adr, appointments, consents, favorites, inquiries, messages, offers, orders, profiles, properties, user, user_roles,
+  account, account_deletion_requests as adr, appointments, consents, favorites, inquiries, messages, offers, orders, profiles, properties,
+  property_events, user, user_roles,
 } from "@/server/db/schema";
+import { hashPassword } from "better-auth/crypto";
 import { AppError, requireActive, type Actor } from "./core";
 import { CONSENT_VERSION } from "@/lib/constants";
 import type { AppRole } from "@/lib/types";
@@ -26,6 +28,57 @@ export async function completeOnboarding(actor: Actor, v: {
       { user_id: actor.id, kind: "marketing", version: CONSENT_VERSION, granted: v.marketing, user_agent: v.userAgent?.slice(0, 300) },
     ]);
   });
+}
+
+/** Profile header counters (design: hm stats row). */
+export async function profileStats(actor: Actor) {
+  const n = async (q: Promise<{ n: number }[]>) => Number((await q)[0]?.n ?? 0);
+  const [saved, appts, offerCount, views] = await Promise.all([
+    n(db.select({ n: count() }).from(favorites).where(eq(favorites.user_id, actor.id))),
+    n(db.select({ n: count() }).from(appointments).where(eq(appointments.buyer_id, actor.id))),
+    n(db.select({ n: count() }).from(offers).where(eq(offers.buyer_id, actor.id))),
+    n(db.select({ n: count() }).from(property_events).where(and(eq(property_events.user_id, actor.id), eq(property_events.kind, "view")))),
+  ]);
+  return { saved, appointments: appts, offers: offerCount, views };
+}
+
+/** Switch the role the app is tailored to (design: "สลับบทบาทการใช้งาน"); also grants that role. */
+export async function setPrimaryRole(actor: Actor, role: AppRole) {
+  requireActive(actor);
+  await db.transaction(async (tx) => {
+    await tx.update(profiles).set({ primary_role: role }).where(eq(profiles.id, actor.id));
+    await tx.insert(user_roles).ignore().values({ user_id: actor.id, role });
+  });
+}
+
+/**
+ * Give a just-verified user (email OTP) a password for email sign-in. Never replaces an existing
+ * password: returns false when the account already has one.
+ */
+export async function setInitialPassword(actor: Actor, password: string) {
+  requireActive(actor);
+  if (password.length < 8) throw new AppError("รหัสผ่านอย่างน้อย 8 ตัวอักษร");
+  const [existing] = await db.select({ id: account.id }).from(account)
+    .where(and(eq(account.userId, actor.id), eq(account.providerId, "credential"))).limit(1);
+  if (existing) return false;
+  const now = new Date();
+  await db.insert(account).values({
+    id: crypto.randomUUID(), userId: actor.id, accountId: actor.id, providerId: "credential", password: await hashPassword(password), createdAt: now, updatedAt: now,
+  });
+  return true;
+}
+
+/** After an email-verified sign-up: password for email sign-in, and the name for a profile not yet onboarded. */
+export async function finishSignUp(actor: Actor, v: { name: string; password: string }) {
+  await setInitialPassword(actor, v.password);
+  await db.update(profiles).set({ display_name: v.name }).where(and(eq(profiles.id, actor.id), isNull(profiles.onboarded_at)));
+}
+
+/** How the user signs in: "google" | "line" | "credential" (email). */
+export async function signInProvider(userId: string) {
+  const rows = await db.select({ p: account.providerId }).from(account).where(eq(account.userId, userId));
+  const ids = rows.map((r) => r.p);
+  return ids.includes("google") ? "google" : ids.includes("line") ? "line" : "credential";
 }
 
 export async function getContact(userId: string) {

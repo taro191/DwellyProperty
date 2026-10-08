@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { z } from "zod";
 import { APIError } from "better-auth/api";
 import { eq } from "drizzle-orm";
@@ -9,6 +9,8 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { profiles } from "@/server/db/schema";
 import { formObject, invalid } from "@/lib/action-utils";
+import { ROLE_COOKIE, YEAR } from "@/lib/intro";
+import { finishSignUp } from "@/server/services/account";
 import type { ActionResult } from "@/lib/types";
 
 const safeNext = (next: unknown) =>
@@ -96,4 +98,41 @@ export async function signInWithProvider(fd: FormData): Promise<void> {
 export async function signOut(): Promise<void> {
   await auth.api.signOut({ headers: await headers() });
   redirect("/");
+}
+
+// ---------------------------------------------------------------------------
+// Sign-up (design: ym "สมัครสมาชิก"): name, role, email, password. The email is proven with a
+// one-time code before the account gets its password, so nobody can pre-register someone else's email.
+// ---------------------------------------------------------------------------
+const ROLES = ["buyer", "tenant", "owner", "investor", "agent"] as const;
+const registerSchema = z.object({
+  name: z.string().trim().min(2, "กรอกชื่ออย่างน้อย 2 ตัวอักษร").max(80),
+  role: z.enum(ROLES, "เลือกบทบาท"),
+  email: z.email("อีเมลไม่ถูกต้อง"),
+  password: z.string().min(8, "รหัสผ่านอย่างน้อย 8 ตัวอักษร").max(128),
+  next: z.string().optional(),
+});
+
+export async function startRegistration(fd: FormData): Promise<ActionResult<{ email: string }>> {
+  const parsed = registerSchema.safeParse(formObject(fd));
+  if (!parsed.success) return invalid(parsed.error);
+  const otp = new FormData();
+  otp.set("email", parsed.data.email);
+  return sendEmailOtp(otp);
+}
+
+export async function completeRegistration(fd: FormData): Promise<ActionResult> {
+  const parsed = registerSchema.extend({ token: z.string().regex(/^\d{6}$/, "กรอกรหัส 6 หลัก") }).safeParse(formObject(fd));
+  if (!parsed.success) return invalid(parsed.error);
+  const v = parsed.data;
+  let userId: string;
+  try {
+    userId = (await auth.api.signInEmailOTP({ body: { email: v.email.toLowerCase(), otp: v.token }, headers: await headers() })).user.id;
+  } catch (e) {
+    return authError(e, "รหัสไม่ถูกต้องหรือหมดอายุ");
+  }
+  const [p] = await db.select({ status: profiles.status }).from(profiles).where(eq(profiles.id, userId)).limit(1);
+  await finishSignUp({ id: userId, status: p.status, roles: [], staffRole: null }, { name: v.name, password: v.password });
+  (await cookies()).set(ROLE_COOKIE, v.role, { maxAge: YEAR, path: "/", sameSite: "lax" });
+  redirect(await landing(userId, safeNext(v.next)));
 }

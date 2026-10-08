@@ -337,6 +337,18 @@ describe("billing, maintenance, PDPA", () => {
     expect(data.offers.every((o) => o.buyer_id === U.buyer || o.seller_id === U.buyer)).toBe(true);
   });
 
+  it("profile: role switch grants the role; sign-up password never replaces an existing one", async () => {
+    await account.setPrimaryRole(await actor("buyer"), "investor");
+    const [p] = await db.select().from(t.profiles).where(eq(t.profiles.id, U.buyer));
+    expect(p.primary_role).toBe("investor");
+    const roles = await db.select().from(t.user_roles).where(eq(t.user_roles.user_id, U.buyer));
+    expect(roles.map((r) => r.role)).toContain("investor");
+    expect(await account.setInitialPassword(await actor("buyer"), "another-password")).toBe(false); // seeded users have one
+    const stats = await account.profileStats(await actor("buyer"));
+    expect(stats.saved).toBeGreaterThanOrEqual(0);
+    await account.setPrimaryRole(await actor("buyer"), "buyer");
+  });
+
   it("deletion anonymises the account and removes the login", async () => {
     const buyer = await actor("buyer");
     await account.requestDeletion(buyer, "test");
