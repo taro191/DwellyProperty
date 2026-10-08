@@ -1,6 +1,7 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 import { isConfigured } from "@/lib/env";
+import { INTRO_COOKIE, YEAR } from "@/lib/intro";
 
 const PROTECTED = ["/dashboard", "/me", "/messages", "/notifications", "/admin", "/welcome"];
 
@@ -14,6 +15,15 @@ export async function proxy(request: NextRequest) {
   if (!isConfigured) {
     if (path === "/setup") return NextResponse.next();
     return NextResponse.rewrite(new URL("/setup", request.url));
+  }
+  // First visit: signed-out people (not crawlers) see the /start splash once before the home page.
+  if (
+    path === "/" && request.method === "GET" && !getSessionCookie(request) && !request.cookies.has(INTRO_COOKIE) &&
+    !/bot|crawl|spider|slurp|preview|facebookexternalhit|lighthouse/i.test(request.headers.get("user-agent") ?? "")
+  ) {
+    const res = NextResponse.redirect(new URL("/start", request.url));
+    res.cookies.set(INTRO_COOKIE, "1", { maxAge: YEAR, path: "/", sameSite: "lax" });
+    return res;
   }
   if (PROTECTED.some((p) => path === p || path.startsWith(p + "/")) && !getSessionCookie(request)) {
     const url = request.nextUrl.clone();

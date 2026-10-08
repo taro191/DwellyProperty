@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { requireViewer } from "@/lib/auth";
 import { getContact } from "@/server/services/account";
 import { Card } from "@/components/ui";
+import { ROLE_COOKIE, isAppRole } from "@/lib/intro";
 import { WelcomeForm } from "./welcome-form";
 
 export const metadata: Metadata = { title: "ยินดีต้อนรับ" };
@@ -11,6 +13,9 @@ export default async function WelcomePage({ searchParams }: PageProps<"/welcome"
   const sp = await searchParams;
 
   const priv = await getContact(viewer.id);
+  // Role picked on the /start splash before signing up.
+  const picked = (await cookies()).get(ROLE_COOKIE)?.value;
+  const primaryRole = !viewer.profile.onboarded_at && isAppRole(picked) ? picked : viewer.profile.primary_role;
 
   return (
     <div className="mx-auto max-w-xl">
@@ -21,7 +26,7 @@ export default async function WelcomePage({ searchParams }: PageProps<"/welcome"
           next={typeof sp.next === "string" ? sp.next : ""}
           defaults={{
             display_name: viewer.profile.display_name,
-            primary_role: viewer.profile.primary_role,
+            primary_role: primaryRole,
             roles: viewer.roles,
             phone: priv?.phone ?? "",
             line_id: priv?.line_id ?? "",
