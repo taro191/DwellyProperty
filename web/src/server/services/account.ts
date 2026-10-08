@@ -3,7 +3,7 @@ import { and, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
 import { db } from "@/server/db";
 import {
-  account, account_deletion_requests as adr, appointments, consents, favorites, inquiries, messages, offers, orders, profiles, properties,
+  account, account_deletion_requests as adr, activity_registrations, appointments, consents, favorites, inquiries, messages, offers, orders, profiles, properties,
   property_events, user, user_roles,
 } from "@/server/db/schema";
 import { hashPassword } from "better-auth/crypto";
@@ -40,6 +40,19 @@ export async function profileStats(actor: Actor) {
     n(db.select({ n: count() }).from(property_events).where(and(eq(property_events.user_id, actor.id), eq(property_events.kind, "view")))),
   ]);
   return { saved, appointments: appts, offers: offerCount, views };
+}
+
+/** What the Dwelly Pass journey and stamps are made of (design: Hx). */
+export async function passProgress(actor: Actor) {
+  const n = async (q: Promise<{ n: number }[]>) => Number((await q)[0]?.n ?? 0);
+  const [stats, chats, videoTours, events, [p]] = await Promise.all([
+    profileStats(actor),
+    n(db.select({ n: count() }).from(messages).where(eq(messages.sender_id, actor.id))),
+    n(db.select({ n: count() }).from(appointments).where(and(eq(appointments.buyer_id, actor.id), eq(appointments.format, "video")))),
+    n(db.select({ n: count() }).from(activity_registrations).where(eq(activity_registrations.user_id, actor.id))),
+    db.select({ onboarded_at: profiles.onboarded_at }).from(profiles).where(eq(profiles.id, actor.id)).limit(1),
+  ]);
+  return { ...stats, chats, videoTours, events, onboarded: Boolean(p?.onboarded_at) };
 }
 
 /** Switch the role the app is tailored to (design: "สลับบทบาทการใช้งาน"); also grants that role. */

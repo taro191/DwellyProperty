@@ -6,6 +6,7 @@ import {
 } from "@/server/db/schema";
 import { AppError, DAY, audit, forbidden, isStaff, nextCounter, notFound, notify, requireActive, type Actor, type Tx } from "./core";
 import type { PropertyCategory, PropertyMedia, PropertyStatus, PropertyWithMedia } from "@/lib/types";
+import { mediaUrl } from "@/lib/format";
 
 export const PUBLIC_STATUSES: PropertyStatus[] = ["active", "reserved", "sold", "rented"];
 export const PAGE_SIZE = 18;
@@ -383,4 +384,15 @@ export async function featureListing(actor: Actor, id: string, until: string | n
     await tx.update(properties).set({ featured_until: until }).where(eq(properties.id, id));
     await audit(tx, actor.id, "LISTING_FEATURED", "properties", id, null, { until });
   });
+}
+
+/** Cover photo URL per property id (first image by sort order), for lists that only need a thumbnail. */
+export async function coverUrls(propertyIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(propertyIds)];
+  if (!ids.length) return new Map();
+  const media = await db.select().from(property_media)
+    .where(and(inArray(property_media.property_id, ids), eq(property_media.kind, "image"))).orderBy(asc(property_media.sort_order));
+  const out = new Map<string, string>();
+  for (const m of media) if (!out.has(m.property_id)) out.set(m.property_id, mediaUrl(m as PropertyMedia));
+  return out;
 }

@@ -76,12 +76,12 @@ export async function unreadMessageCount(actor: Actor) {
 export async function getConversation(actor: Actor, id: string) {
   const member = await isMember(id, actor.id);
   if (!member && !isStaff(actor, ["support"])) return null;
-  const [conv] = await db.select({ id: conversations.id, property_title: properties.title, property_code: properties.code })
+  const [conv] = await db.select({ id: conversations.id, property_id: conversations.property_id, property_title: properties.title, property_code: properties.code })
     .from(conversations).leftJoin(properties, eq(properties.id, conversations.property_id))
     .where(eq(conversations.id, id)).limit(1);
   if (!conv) return null;
   const [others, msgs] = await Promise.all([
-    db.select({ user_id: cp.user_id, display_name: profiles.display_name, avatar_url: profiles.avatar_url })
+    db.select({ user_id: cp.user_id, display_name: profiles.display_name, avatar_url: profiles.avatar_url, is_kyc_verified: profiles.is_kyc_verified })
       .from(cp).innerJoin(profiles, eq(profiles.id, cp.user_id))
       .where(and(eq(cp.conversation_id, id), ne(cp.user_id, actor.id))),
     db.select().from(messages).where(eq(messages.conversation_id, id)).orderBy(asc(messages.created_at)).limit(500),

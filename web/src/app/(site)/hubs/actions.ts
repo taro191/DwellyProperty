@@ -12,5 +12,6 @@ export async function toggleActivityRegistration(activityId: string, register: b
   if (!z.uuid().safeParse(activityId).success) return { ok: false, error: "invalid" };
   const r = await attempt(() => setRegistration(viewer, activityId, register));
   revalidatePath("/hubs");
+  revalidatePath("/activities");
   return r;
 }

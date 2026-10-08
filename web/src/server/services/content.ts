@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "@/server/db";
-import { activities, activity_registrations, boost_products, hub_properties, hubs, plans, properties, zones } from "@/server/db/schema";
+import { activities, activity_registrations, boost_products, hub_properties, hubs, plans, profiles, properties, zones } from "@/server/db/schema";
 import { AppError, notFound, requireActive, type Actor } from "./core";
 import { withMedia } from "./listings";
 import type { Plan, Zone } from "@/lib/types";
@@ -12,7 +12,7 @@ export async function listZones(includeHidden = false): Promise<Zone[]> {
 
 export async function listHubs(statuses: ("draft" | "scheduled" | "live" | "ended")[]) {
   const rows = await db.select({
-    h: hubs, count: sql<number>`(select count(*) from ${hub_properties} hp where hp.hub_id = ${hubs.id})`,
+    h: hubs, count: sql<number>`(select count(*) from ${hub_properties} hp where hp.hub_id = hubs.id)`,
   }).from(hubs).where(inArray(hubs.status, statuses)).orderBy(desc(hubs.starts_at));
   return rows.map((r) => ({ ...r.h, property_count: Number(r.count) }));
 }
@@ -66,4 +66,29 @@ export async function listPlans(): Promise<Plan[]> {
 
 export async function listBoostProducts() {
   return db.select().from(boost_products).where(eq(boost_products.active, true)).orderBy(asc(boost_products.sort_order));
+}
+
+/** Upcoming published activities with seats left and whether `userId` is registered (design: qx). */
+export async function activitySchedule(userId: string | undefined, limit = 50) {
+  const rows = await db.select({
+    a: activities,
+    taken: sql<number>`(select count(*) from ${activity_registrations} r where r.activity_id = activities.id)`,
+    host_name: sql<string | null>`(select pr.display_name from ${profiles} pr where pr.id = activities.host_id)`,
+  }).from(activities)
+    .where(and(eq(activities.status, "published"), gt(activities.starts_at, new Date().toISOString())))
+    .orderBy(asc(activities.starts_at)).limit(limit);
+  const mine = await myRegistrations(userId);
+  return rows.map(({ a, taken, host_name }) => ({ ...a, host_name, seats_left: a.seats == null ? null : Math.max(0, a.seats - Number(taken)), registered: mine.has(a.id) }));
+}
+
+/** All public hubs with listing and seller counts (design: hx Live / Upcoming / Archive). */
+export async function hubsOverview() {
+  const rows = await db.select({
+    h: hubs,
+    // Outer columns are written out as hubs.id: drizzle renders ${hubs.id} unqualified, which a subquery would rebind.
+    count: sql<number>`(select count(*) from ${hub_properties} hp where hp.hub_id = hubs.id)`,
+    sellers: sql<number>`(select count(distinct coalesce(p.agent_id, p.owner_id)) from ${hub_properties} hp
+      join ${properties} p on p.id = hp.property_id where hp.hub_id = hubs.id)`,
+  }).from(hubs).where(inArray(hubs.status, ["live", "scheduled", "ended"])).orderBy(desc(hubs.starts_at));
+  return rows.map((r) => ({ ...r.h, property_count: Number(r.count), seller_count: Number(r.sellers) }));
 }
