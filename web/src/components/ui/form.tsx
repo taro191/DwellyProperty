@@ -8,14 +8,16 @@ const PendingContext = createContext(false);
 const StateContext = createContext<ActionResult<unknown> | null>(null);
 
 export function SubmitButton({
-  children, pendingText = "กำลังบันทึก…", variant = "primary", size = "md", className, name, value, disabled,
+  children, pendingText = "กำลังบันทึก…", variant = "primary", size = "md", className, name, value, disabled, plain = false,
 }: {
   children: ReactNode; pendingText?: string; variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "sm" | "md" | "lg"; className?: string; name?: string; value?: string; disabled?: boolean;
+  /** Use only `className` (prototype-styled screens) instead of the button variants. */
+  plain?: boolean;
 }) {
   const pending = useContext(PendingContext);
   return (
-    <button type="submit" name={name} value={value} disabled={pending || disabled} className={buttonClass(variant, size, className)}>
+    <button type="submit" name={name} value={value} disabled={pending || disabled} className={plain ? className : buttonClass(variant, size, className)}>
       {pending ? pendingText : children}
     </button>
   );

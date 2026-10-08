@@ -2,139 +2,262 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MapPin, Phone, Video } from "lucide-react";
+import { CircleCheckBig, MapPin, MessageSquare, Phone, Video } from "lucide-react";
 import { ActionForm, FieldError, SubmitButton } from "@/components/ui/form";
-import { Badge, Card, Input, Textarea } from "@/components/ui";
-import { APPOINTMENT_STATUS_LABEL, OFFER_STATUS_LABEL } from "@/lib/constants";
-import { formatDate, formatDateTime, formatTHB } from "@/lib/format";
-import type { Appointment, Offer } from "@/lib/types";
-import { respondOffer, updateAppointment } from "@/app/(site)/deals-actions";
+import { APPOINTMENT_STATUS_LABEL, INQUIRY_STATUS_LABEL, INTENT_LABEL, OFFER_STATUS_LABEL } from "@/lib/constants";
+import { formatDate, formatDateTime, formatTHB, timeAgo } from "@/lib/format";
+import type { Appointment, Inquiry, InquiryStatus, Offer } from "@/lib/types";
+import { respondOffer, updateAppointment, updateLead } from "@/app/(site)/deals-actions";
 
 type Party = { display_name: string } | null;
 type Prop = { title: string; code: string } | null;
 
-const apptTone = { pending: "warning", confirmed: "accent", completed: "info" } as const;
+const card = "p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-sm";
+const input = "w-full px-3 py-2 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-primary)] placeholder-[var(--text-secondary)] outline-none focus:border-[var(--accent)]";
+const btnMain = "flex-1 py-2.5 rounded-xl text-xs font-bold bg-[var(--accent)] text-[var(--bg)] flex items-center justify-center gap-1 shadow-sm disabled:opacity-60";
+const btnSuccess = "flex-1 py-2.5 rounded-xl text-xs font-bold bg-[var(--success)] text-[var(--bg)] flex items-center justify-center gap-1 shadow-sm disabled:opacity-60";
+const btnLine = "flex-1 py-2.5 rounded-xl text-xs font-semibold border border-[var(--border)] text-[var(--text-secondary)] hover:text-white disabled:opacity-60";
+const btnDanger = "py-2 px-3 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 disabled:opacity-60";
+const pill = (tone: "accent" | "warning" | "success" | "purple" | "muted" | "danger") =>
+  `text-[10px] px-2 py-0.5 rounded-full font-bold ${
+    {
+      accent: "bg-[var(--accent)]/15 text-[var(--accent)]",
+      warning: "bg-[var(--warning)]/15 text-[var(--warning)]",
+      success: "bg-[var(--success)]/15 text-[var(--success)]",
+      purple: "bg-purple-500/15 text-purple-400",
+      muted: "bg-[var(--surface-2)] text-[var(--text-secondary)]",
+      danger: "bg-rose-500/15 text-rose-400",
+    }[tone]
+  }`;
+
+/** Lead status colours (design: `T1`). */
+const LEAD_TONE: Record<InquiryStatus, Parameters<typeof pill>[0]> = { new: "accent", contacted: "warning", qualified: "success", won: "purple", lost: "muted" };
+
+/** A buyer's inquiry on the seller side (design: Wx "Leads ผู้สนใจ"). */
+export function LeadCard({ l }: { l: Inquiry & { properties: Prop; party: Party } }) {
+  return (
+    <div className={card}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="font-bold text-sm text-[var(--text-primary)]">{l.party?.display_name}</h4>
+            <span className={pill(LEAD_TONE[l.status])}>{INQUIRY_STATUS_LABEL[l.status]}</span>
+          </div>
+          <Link href={`/property/${l.properties?.code}`} className="block text-xs text-[var(--accent)] font-medium mt-1 truncate">
+            {l.properties?.title}
+          </Link>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            ความต้องการ: {INTENT_LABEL[l.intent]}
+            {l.budget ? ` • งบ ${formatTHB(l.budget)}` : ""}
+          </p>
+          {l.message && <p className="text-xs text-[var(--text-primary)] mt-1.5 whitespace-pre-line">{l.message}</p>}
+          <p className="text-[10px] text-[var(--text-secondary)] mt-1.5">
+            {timeAgo(l.created_at)}
+            {l.contact_phone && (
+              <>
+                {" • "}
+                <a href={`tel:${l.contact_phone}`} className="text-emerald-400 font-bold">
+                  📞 {l.contact_phone}
+                </a>
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+      <ActionForm action={updateLead} className="mt-3 pt-3 border-t border-[var(--border)] space-y-2">
+        <input type="hidden" name="id" value={l.id} />
+        <div className="flex gap-2">
+          <select name="status" defaultValue={l.status} aria-label="สถานะ" className={`${input} font-bold`}>
+            {(Object.keys(INQUIRY_STATUS_LABEL) as InquiryStatus[]).map((s) => (
+              <option key={s} value={s}>
+                {INQUIRY_STATUS_LABEL[s]}
+              </option>
+            ))}
+          </select>
+          <SubmitButton plain className="px-4 rounded-xl text-xs font-bold bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-primary)] hover:border-[var(--accent)] shrink-0">
+            บันทึก
+          </SubmitButton>
+        </div>
+        <textarea name="seller_notes" defaultValue={l.seller_notes ?? ""} rows={2} placeholder="บันทึกส่วนตัว (ผู้ซื้อไม่เห็น)" className={`${input} resize-none`} />
+      </ActionForm>
+    </div>
+  );
+}
+
+const APPT_TONE: Record<string, Parameters<typeof pill>[0]> = { pending: "warning", confirmed: "success", completed: "accent", declined: "danger", cancelled: "muted", no_show: "danger" };
 
 export function AppointmentCard({ a, side, property, other }: { a: Appointment; side: "seller" | "buyer"; property: Prop; other: Party }) {
   const upcoming = new Date(a.scheduled_at) > new Date();
+  const Icon = a.format === "video" ? Video : a.format === "phone" ? Phone : MapPin;
   return (
-    <Card className="p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="flex items-center gap-2 font-semibold">
-            {a.format === "video" ? <Video className="h-4 w-4 text-accent" /> : a.format === "phone" ? <Phone className="h-4 w-4 text-accent" /> : <MapPin className="h-4 w-4 text-accent" />}
+    <div className={`${card} space-y-3`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 font-extrabold text-sm text-[var(--accent)]">
+            <Icon className="w-4 h-4" />
             {formatDateTime(a.scheduled_at)}
           </p>
-          <Link href={`/property/${property?.code}`} className="text-xs text-subtle hover:text-fg">{property?.title}</Link>
-          <p className="text-sm text-muted">{side === "seller" ? "ผู้ขอนัด" : "ผู้ขาย"}: {other?.display_name}</p>
+          <Link href={`/property/${property?.code}`} className="block font-bold text-xs text-[var(--text-primary)] mt-1 truncate hover:text-[var(--accent)]">
+            {property?.title}
+          </Link>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            {side === "seller" ? "ผู้ขอนัด" : "ผู้พาชม"}: {other?.display_name} • {a.format === "onsite" ? "🏢 ชมห้องจริง" : a.format === "video" ? "📹 วิดีโอคอล" : "📞 โทรปรึกษา"}
+          </p>
         </div>
-        <Badge tone={apptTone[a.status as keyof typeof apptTone] ?? "neutral"}>{APPOINTMENT_STATUS_LABEL[a.status]}</Badge>
+        <span className={pill(APPT_TONE[a.status] ?? "muted")}>{APPOINTMENT_STATUS_LABEL[a.status]}</span>
       </div>
-      {a.buyer_note && <p className="mt-2 text-sm text-muted">💬 {a.buyer_note}</p>}
-      {a.seller_note && <p className="mt-1 text-sm text-muted">📝 ผู้ขาย: {a.seller_note}</p>}
+      {a.buyer_note && <p className="text-xs text-[var(--text-secondary)] bg-[var(--surface-2)] p-2 rounded-xl">💬 {a.buyer_note}</p>}
+      {a.seller_note && <p className="text-xs text-[var(--text-secondary)]">📝 ผู้ขาย: {a.seller_note}</p>}
       {a.meeting_url && a.status === "confirmed" && (
-        <a href={a.meeting_url} target="_blank" rel="noreferrer" className="mt-1 block text-sm text-accent underline">เข้าร่วมวิดีโอคอล</a>
+        <a href={a.meeting_url} target="_blank" rel="noreferrer" className="block text-xs font-bold text-[var(--accent)] underline">
+          เข้าร่วมวิดีโอคอล
+        </a>
       )}
-
       {side === "seller" && a.status === "pending" && (
-        <ActionForm action={updateAppointment} className="mt-3 space-y-2">
+        <ActionForm action={updateAppointment} className="pt-3 border-t border-[var(--border)] space-y-2">
           <input type="hidden" name="id" value={a.id} />
-          {a.format === "video" && <Input name="meeting_url" type="url" placeholder="ลิงก์ Google Meet / Zoom / LINE (ไม่บังคับ)" />}
+          {a.format === "video" && <input name="meeting_url" type="url" placeholder="ลิงก์ Google Meet / Zoom / LINE (ไม่บังคับ)" className={input} />}
           <FieldError name="meeting_url" />
-          <Input name="seller_note" placeholder="ข้อความถึงผู้ขอนัด เช่น จุดนัดพบ" />
+          <input name="seller_note" placeholder="ข้อความถึงผู้ขอนัด เช่น จุดนัดพบ" className={input} />
           <div className="flex gap-2">
-            <SubmitButton name="status" value="confirmed" size="sm">ยืนยันนัด</SubmitButton>
-            <SubmitButton name="status" value="declined" size="sm" variant="ghost">ปฏิเสธ</SubmitButton>
+            <SubmitButton plain name="status" value="confirmed" className={btnSuccess}>
+              <CircleCheckBig className="w-4 h-4" /> ยืนยันนัด
+            </SubmitButton>
+            <SubmitButton plain name="status" value="declined" className={btnLine}>
+              ปฏิเสธ
+            </SubmitButton>
           </div>
         </ActionForm>
       )}
       {side === "seller" && a.status === "confirmed" && !upcoming && (
-        <ActionForm action={updateAppointment} className="mt-3 flex gap-2">
+        <ActionForm action={updateAppointment} className="pt-3 border-t border-[var(--border)] flex gap-2">
           <input type="hidden" name="id" value={a.id} />
-          <SubmitButton name="status" value="completed" size="sm">ชมเสร็จแล้ว</SubmitButton>
-          <SubmitButton name="status" value="no_show" size="sm" variant="ghost">ไม่มาตามนัด</SubmitButton>
+          <SubmitButton plain name="status" value="completed" className={btnMain}>
+            ชมเสร็จแล้ว
+          </SubmitButton>
+          <SubmitButton plain name="status" value="no_show" className={btnLine}>
+            ไม่มาตามนัด
+          </SubmitButton>
         </ActionForm>
       )}
       {(a.status === "pending" || (a.status === "confirmed" && upcoming)) && (
-        <ActionForm action={updateAppointment} className="mt-2">
+        <ActionForm action={updateAppointment}>
           <input type="hidden" name="id" value={a.id} />
-          <SubmitButton name="status" value="cancelled" size="sm" variant="ghost" className="text-red-300">ยกเลิกนัด</SubmitButton>
+          <SubmitButton plain name="status" value="cancelled" className={btnDanger}>
+            ยกเลิกนัด
+          </SubmitButton>
         </ActionForm>
       )}
-    </Card>
+    </div>
   );
 }
 
-const offerTone = { pending: "warning", countered: "info", accepted: "accent", rejected: "danger" } as const;
+const OFFER_TONE: Record<string, Parameters<typeof pill>[0]> = { pending: "warning", countered: "purple", accepted: "success", rejected: "danger", withdrawn: "muted", expired: "muted" };
 
+/** Offer card (design: Wx "การต่อรองราคา"). */
 export function OfferCard({ o, side, property, other }: { o: Offer; side: "seller" | "buyer"; property: Prop; other: Party }) {
   const [countering, setCountering] = useState(false);
-  const diff = ((Number(o.offer_price) - Number(o.listed_price)) / Number(o.listed_price)) * 100;
+  const listed = Number(o.listed_price);
+  const diff = listed - Number(o.offer_price);
+  const pct = listed ? ((diff / listed) * 100).toFixed(1) : "0";
   const live = (o.status === "pending" || o.status === "countered") && new Date(o.valid_until) > new Date();
 
   return (
-    <Card className="p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-lg font-extrabold text-accent-strong">
-            {formatTHB(o.offer_price)}
-            {o.kind === "rent" && <span className="text-xs text-subtle">/เดือน</span>}
-            <span className={`ml-2 text-xs ${diff < 0 ? "text-amber-300" : "text-accent"}`}>
-              ({diff > 0 ? "+" : ""}{diff.toFixed(1)}% จากราคาตั้ง {formatTHB(o.listed_price)})
-            </span>
-          </p>
-          <Link href={`/property/${property?.code}`} className="text-xs text-subtle hover:text-fg">{property?.title}</Link>
-          <p className="text-sm text-muted">{side === "seller" ? "ผู้เสนอ" : "ผู้ขาย"}: {other?.display_name} · มีผลถึง {formatDate(o.valid_until)}</p>
+    <div className={`${card} space-y-3`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--warning)]">
+            {o.status === "pending" ? "ข้อเสนอรอพิจารณา (Pending Offer)" : `ข้อเสนอ${o.kind === "rent" ? "ค่าเช่า" : "ซื้อ"}`}
+          </span>
+          <h4 className="font-bold text-sm text-[var(--text-primary)] mt-0.5">{other?.display_name}</h4>
+          <Link href={`/property/${property?.code}`} className="block text-xs text-[var(--text-secondary)] truncate hover:text-[var(--accent)]">
+            {property?.title} (ราคาประกาศ {formatTHB(listed)})
+          </Link>
         </div>
-        <Badge tone={offerTone[o.status as keyof typeof offerTone] ?? "neutral"}>{OFFER_STATUS_LABEL[o.status]}</Badge>
+        <span className={pill(OFFER_TONE[o.status] ?? "muted")}>{OFFER_STATUS_LABEL[o.status]}</span>
       </div>
-      {o.buyer_note && <p className="mt-2 text-sm text-muted">💬 {o.buyer_note}</p>}
-      {o.counter_price && <p className="mt-1 text-sm">ราคาที่ผู้ขายเสนอกลับ: <b className="text-sky-300">{formatTHB(o.counter_price)}</b></p>}
-      {o.seller_note && <p className="mt-1 text-sm text-muted">📝 ผู้ขาย: {o.seller_note}</p>}
-
+      <div className="p-3 rounded-xl bg-[var(--surface-2)]">
+        <p className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">ราคาที่ผู้ซื้อเสนอ</p>
+        <p className="font-black text-2xl text-[var(--accent)] mt-0.5">
+          {formatTHB(o.offer_price)}
+          {o.kind === "rent" && <span className="text-xs text-[var(--text-secondary)]">/เดือน</span>}
+        </p>
+        <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+          ส่วนต่าง: {diff >= 0 ? `-${formatTHB(diff)} (-${pct}%)` : `+${formatTHB(-diff)}`} • ยืนราคาถึง {formatDate(o.valid_until)}
+        </p>
+        {o.counter_price && (
+          <p className="text-xs mt-1">
+            ราคาที่ผู้ขายเสนอกลับ: <b className="text-sky-300">{formatTHB(o.counter_price)}</b>
+          </p>
+        )}
+      </div>
+      {o.buyer_note && <p className="text-xs text-[var(--text-secondary)]">💬 {o.buyer_note}</p>}
+      {o.seller_note && <p className="text-xs text-[var(--text-secondary)]">📝 ผู้ขาย: {o.seller_note}</p>}
+      {o.status === "accepted" && (
+        <div className="p-3 rounded-xl bg-[var(--success)]/15 border border-[var(--success)]/30 text-center">
+          <p className="text-xs font-bold text-[var(--success)] flex items-center justify-center gap-1.5">
+            <CircleCheckBig className="w-4 h-4" />
+            ตกลงราคากันแล้ว ขั้นต่อไป: นัดทำสัญญาและวางเงินมัดจำกับคู่สัญญาโดยตรง
+          </p>
+        </div>
+      )}
       {live && side === "seller" && o.status === "pending" && (
-        <ActionForm action={respondOffer} className="mt-3 space-y-2">
+        <ActionForm action={respondOffer} className="space-y-2">
           <input type="hidden" name="id" value={o.id} />
           {countering && (
             <>
-              <Input name="counter_price" type="number" min={1} required placeholder="ราคาที่ต้องการเสนอกลับ" />
+              <input name="counter_price" type="number" min={1} required placeholder="ราคาที่ต้องการเสนอกลับ" className={input} />
               <FieldError name="counter_price" />
             </>
           )}
-          <Textarea name="seller_note" placeholder="ข้อความถึงผู้เสนอ (ไม่บังคับ)" className="min-h-16" />
-          <div className="flex flex-wrap gap-2">
-            {countering ? (
-              <>
-                <SubmitButton name="status" value="countered" size="sm">ส่งราคาเสนอกลับ</SubmitButton>
-                <button type="button" onClick={() => setCountering(false)} className="text-sm text-subtle">ยกเลิก</button>
-              </>
-            ) : (
-              <>
-                <SubmitButton name="status" value="accepted" size="sm">ตอบรับข้อเสนอ</SubmitButton>
-                <button type="button" onClick={() => setCountering(true)} className="rounded-xl border border-line px-3 text-sm">เสนอราคากลับ</button>
-                <SubmitButton name="status" value="rejected" size="sm" variant="ghost">ปฏิเสธ</SubmitButton>
-              </>
-            )}
-          </div>
+          <textarea name="seller_note" rows={2} placeholder="ข้อความถึงผู้เสนอ (ไม่บังคับ)" className={`${input} resize-none`} />
+          {countering ? (
+            <div className="flex gap-2">
+              <SubmitButton plain name="status" value="countered" className={btnMain}>
+                ส่งราคาเสนอกลับ
+              </SubmitButton>
+              <button type="button" onClick={() => setCountering(false)} className={btnLine}>
+                ยกเลิก
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <SubmitButton plain name="status" value="accepted" className={btnSuccess}>
+                <CircleCheckBig className="w-4 h-4" /> ยอมรับข้อเสนอ
+              </SubmitButton>
+              <button type="button" onClick={() => setCountering(true)} className={btnLine}>
+                ต่อรองราคา
+              </button>
+              <SubmitButton plain name="status" value="rejected" className={btnDanger}>
+                ปฏิเสธ
+              </SubmitButton>
+            </div>
+          )}
         </ActionForm>
       )}
       {live && side === "buyer" && (
-        <ActionForm action={respondOffer} className="mt-3 flex flex-wrap gap-2">
+        <ActionForm action={respondOffer} className="flex gap-2">
           <input type="hidden" name="id" value={o.id} />
           {o.status === "countered" && (
             <>
-              <SubmitButton name="status" value="accepted" size="sm">ยอมรับราคา {formatTHB(o.counter_price)}</SubmitButton>
-              <SubmitButton name="status" value="rejected" size="sm" variant="secondary">ไม่รับ</SubmitButton>
+              <SubmitButton plain name="status" value="accepted" className={btnSuccess}>
+                ยอมรับ {formatTHB(o.counter_price)}
+              </SubmitButton>
+              <SubmitButton plain name="status" value="rejected" className={btnLine}>
+                ไม่รับ
+              </SubmitButton>
             </>
           )}
-          <SubmitButton name="status" value="withdrawn" size="sm" variant="ghost" className="text-red-300">ถอนข้อเสนอ</SubmitButton>
+          <SubmitButton plain name="status" value="withdrawn" className={btnDanger}>
+            ถอนข้อเสนอ
+          </SubmitButton>
         </ActionForm>
       )}
-      {o.status === "accepted" && (
-        <p className="mt-3 rounded-2xl bg-accent/10 px-3 py-2 text-sm text-accent-strong">
-          🎉 ตกลงราคากันแล้ว ขั้นต่อไป: นัดทำสัญญาจะซื้อจะขาย/สัญญาเช่า และวางเงินมัดจำกับคู่สัญญาโดยตรง
-        </p>
+      {side === "seller" && (
+        <Link href="/messages" className="flex items-center gap-1 text-[11px] font-bold text-[var(--accent)] hover:underline">
+          <MessageSquare className="w-3.5 h-3.5" /> ต่อรองในแชท
+        </Link>
       )}
-    </Card>
+    </div>
   );
 }

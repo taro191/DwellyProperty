@@ -18,6 +18,7 @@ let admin: typeof import("@/server/services/admin");
 let account: typeof import("@/server/services/account");
 let billing: typeof import("@/server/services/billing");
 let requests: typeof import("@/server/services/requests");
+let collab: typeof import("@/server/services/collab");
 let U: Record<string, string>;
 
 async function actor(key: string): Promise<Actor> {
@@ -46,10 +47,10 @@ beforeAll(async () => {
   await runMigrations(process.env.DATABASE_URL);
   ({ db } = await import("@/server/db"));
   t = await import("@/server/db/schema");
-  [listings, deals, chat, trust, admin, account, billing, requests] = await Promise.all([
+  [listings, deals, chat, trust, admin, account, billing, requests, collab] = await Promise.all([
     import("@/server/services/listings"), import("@/server/services/deals"), import("@/server/services/chat"),
     import("@/server/services/trust"), import("@/server/services/admin"), import("@/server/services/account"),
-    import("@/server/services/billing"), import("@/server/services/requests"),
+    import("@/server/services/billing"), import("@/server/services/requests"), import("@/server/services/collab"),
   ]);
   const { seed } = await import("../scripts/seed");
   U = (await seed({ activity: false }))!; // sample activity is covered by seed.test.ts
@@ -363,6 +364,30 @@ describe("billing, maintenance, PDPA", () => {
     await expect(requests.closeBuyerRequest(await actor("buyer"), id)).rejects.toThrow();
     await requests.closeBuyerRequest(await actor("tenant"), id);
     expect((await requests.openBuyerRequests(await actor("agent"))).some((r) => r.id === id)).toBe(false);
+  });
+
+  it("owner-agent hub: appoint, exclusive rules, lead locks are first-come and private to the agent", async () => {
+    const [p] = await db.select().from(t.properties).where(and(eq(t.properties.owner_id, U.owner), eq(t.properties.status, "active"), eq(t.properties.listing_type, "sale")));
+    // a second network agent
+    await db.insert(t.agent_profiles).values({ user_id: U.investor, agent_code: "AGT-TEST-2" }).onDuplicateKeyUpdate({ set: { agent_code: "AGT-TEST-2" } });
+    await expect(collab.assignAgent(await actor("buyer"), { property_id: p.id, agent_id: U.agent, deal: "sale", contract: "open_multi", commission: "3%" })).rejects.toThrow();
+    await collab.assignAgent(await actor("owner"), { property_id: p.id, agent_id: U.agent, deal: "sale", contract: "open_multi", commission: "3%" });
+    await expect(collab.assignAgent(await actor("owner"), { property_id: p.id, agent_id: U.investor, deal: "sale", contract: "exclusive", commission: "3%" }))
+      .rejects.toThrow("Exclusive");
+    await collab.assignAgent(await actor("owner"), { property_id: p.id, agent_id: U.investor, deal: "sale", contract: "open_multi", commission: "2.5%" });
+    await collab.logAgentActivity(await actor("agent"), { property_id: p.id, deal: "sale", kind: "lead_lock", client_name: "คุณเอ", client_phone_last4: "1234", summary: "ลูกค้าพร้อมดูห้อง" });
+    await expect(collab.logAgentActivity(await actor("investor"), { property_id: p.id, deal: "sale", kind: "lead_lock", client_name: "คุณเอ", client_phone_last4: "1234", summary: "ซ้ำ" }))
+      .rejects.toThrow("ล็อกสิทธิ์");
+    await expect(collab.logAgentActivity(await actor("tenant"), { property_id: p.id, deal: "sale", kind: "viewing", summary: "ไม่ได้รับแต่งตั้ง" })).rejects.toThrow();
+    const hub = await collab.ownerCollab(await actor("owner"), p.id);
+    expect(hub.agents.find((a) => a.agent_id === U.agent)?.locks).toBe(1);
+    const theirs = await collab.agentAssignments(await actor("investor"));
+    expect(theirs.find((x) => x.property.id === p.id)!.logs.some((l) => l.kind === "lead_lock")).toBe(false); // other agents' clients stay private
+    await collab.postOwnerNotice(await actor("owner"), { property_id: p.id, deal: "sale", summary: "ปรับราคากลางเป็น 2.3 ล้าน" });
+    expect((await collab.agentAssignments(await actor("investor"))).find((x) => x.property.id === p.id)!.logs.some((l) => l.kind === "owner_notice")).toBe(true);
+    const a = hub.agents.find((x) => x.agent_id === U.investor)!;
+    await collab.endAgent(await actor("owner"), a.id);
+    expect((await collab.agentAssignments(await actor("investor"))).some((x) => x.property.id === p.id)).toBe(false);
   });
 
   it("deletion anonymises the account and removes the login", async () => {

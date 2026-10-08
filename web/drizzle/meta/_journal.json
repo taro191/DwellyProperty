@@ -29,6 +29,13 @@
       "when": 1791458038712,
       "tag": "0003_buyer_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1791494288572,
+      "tag": "0004_agent_collab",
+      "breakpoints": true
     }
   ]
 }

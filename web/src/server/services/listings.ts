@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, like, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/server/db";
 import {
-  agency_pods, agent_profiles, favorites, profiles, properties, property_events, property_media, user_roles, zones,
+  agency_pods, agent_profiles, favorites, inquiries, profiles, properties, property_events, property_media, user_roles, zones,
 } from "@/server/db/schema";
 import { AppError, DAY, audit, forbidden, isStaff, nextCounter, notFound, notify, requireActive, type Actor, type Tx } from "./core";
 import type { PropertyCategory, PropertyMedia, PropertyStatus, PropertyWithMedia } from "@/lib/types";
@@ -395,4 +395,20 @@ export async function coverUrls(propertyIds: string[]): Promise<Map<string, stri
   const out = new Map<string, string>();
   for (const m of media) if (!out.has(m.property_id)) out.set(m.property_id, mediaUrl(m as PropertyMedia));
   return out;
+}
+
+/** Views, saves and inquiries on the actor's listings over the last 7 days (design: Wx "ประสิทธิภาพรอบ 7 วัน"). */
+export async function sellerWeekStats(actor: Actor) {
+  const since = new Date(Date.now() - 7 * DAY).toISOString();
+  const mine = or(eq(properties.owner_id, actor.id), eq(properties.agent_id, actor.id));
+  const n = async (q: Promise<{ n: number }[]>) => Number((await q)[0]?.n ?? 0);
+  const [views, saves, contacts] = await Promise.all([
+    n(db.select({ n: sql<number>`count(*)` }).from(property_events).innerJoin(properties, eq(properties.id, property_events.property_id))
+      .where(and(mine, eq(property_events.kind, "view"), gte(property_events.created_at, since)))),
+    n(db.select({ n: sql<number>`count(*)` }).from(favorites).innerJoin(properties, eq(properties.id, favorites.property_id))
+      .where(and(mine, gte(favorites.created_at, since)))),
+    n(db.select({ n: sql<number>`count(*)` }).from(inquiries).innerJoin(properties, eq(properties.id, inquiries.property_id))
+      .where(and(mine, gte(inquiries.created_at, since)))),
+  ]);
+  return { views, saves, contacts };
 }

@@ -500,6 +500,35 @@ export const reports = mysqlTable("reports", {
   resolved_at: isoDatetime("resolved_at"),
 }, (t) => [index("reports_queue_idx").on(t.status, t.created_at), index("reports_target_idx").on(t.target_type, t.target_id)]);
 
+/** Agents an owner has appointed for a listing, per deal (design: Owner-Agent Hub). */
+export const listing_agents = mysqlTable("listing_agents", {
+  id: id(),
+  property_id: ref("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  agent_id: ref("agent_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  deal: mysqlEnum("deal", ["sale", "rent"]).notNull(),
+  contract: mysqlEnum("contract", ["open_multi", "exclusive"]).notNull().default("open_multi"),
+  commission: varchar("commission", { length: 80 }).notNull(),
+  status: mysqlEnum("status", ["active", "ended"]).notNull().default("active"),
+  created_at: createdAt(),
+  updated_at: updatedAt(),
+}, (t) => [uniqueIndex("listing_agents_uq").on(t.property_id, t.agent_id, t.deal), index("listing_agents_agent_idx").on(t.agent_id, t.status)]);
+
+/** Activity feed between an owner and the appointed agents: viewings, lead locks, feedback, owner notices. */
+export const collab_logs = mysqlTable("collab_logs", {
+  id: id(),
+  property_id: ref("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  author_id: ref("author_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  deal: mysqlEnum("deal", ["sale", "rent"]).notNull(),
+  kind: mysqlEnum("kind", ["viewing", "lead_lock", "customer_feedback", "offer_submitted", "marketing", "owner_notice"]).notNull(),
+  client_name: varchar("client_name", { length: 80 }),
+  client_phone_last4: varchar("client_phone_last4", { length: 4 }),
+  amount: money("amount"),
+  interest: mysqlEnum("interest", ["ready_to_book", "interested_high", "considering"]),
+  summary: text("summary").notNull(),
+  lock_until: isoDatetime("lock_until"),
+  created_at: createdAt(),
+}, (t) => [index("collab_logs_property_idx").on(t.property_id, t.created_at)]);
+
 export const commission_programs = mysqlTable("commission_programs", {
   property_id: ref("property_id").primaryKey().references(() => properties.id, { onDelete: "cascade" }),
   enabled: boolean("enabled").notNull().default(true),
