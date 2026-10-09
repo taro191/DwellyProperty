@@ -8,20 +8,20 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const variantClass: Record<Variant, string> = {
-  primary: "bg-accent text-[#04130d] hover:bg-accent-strong shadow-lg shadow-accent/20",
-  secondary: "bg-surface-2 text-fg border border-line hover:border-accent/60",
-  ghost: "text-muted hover:text-fg hover:bg-surface-2",
-  danger: "bg-danger/15 text-red-300 border border-danger/40 hover:bg-danger/25",
+  primary: "bg-[var(--accent)] text-[var(--bg)] hover:brightness-110 shadow-md",
+  secondary: "bg-[var(--surface-2)] text-[var(--text-primary)] border border-[var(--border)] hover:border-[var(--accent)]",
+  ghost: "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]",
+  danger: "bg-rose-500/15 text-rose-400 border border-rose-500/40 hover:bg-rose-500/25",
 };
 const sizeClass: Record<Size, string> = {
-  sm: "h-9 px-3 text-sm rounded-xl",
-  md: "h-11 px-4 text-sm rounded-2xl",
-  lg: "h-12 px-6 text-base rounded-2xl",
+  sm: "h-8 px-3 text-xs rounded-xl",
+  md: "h-10 px-4 text-xs rounded-xl",
+  lg: "h-11 px-5 text-sm rounded-2xl",
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", extra?: string) {
   return cn(
-    "inline-flex items-center justify-center gap-2 font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
+    "inline-flex items-center justify-center gap-1.5 font-extrabold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap",
     variantClass[variant],
     sizeClass[size],
     extra,
@@ -41,10 +41,10 @@ export function ButtonLink({
 }
 
 const fieldBase =
-  "w-full rounded-2xl bg-surface-2 border border-line px-4 text-sm text-fg placeholder:text-subtle/70 focus:border-accent focus:outline-none transition-colors";
+  "w-full rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/60 focus:border-[var(--accent)] focus:outline-none transition-colors";
 
 export function Input({ className, ...props }: ComponentProps<"input">) {
-  return <input className={cn(fieldBase, "h-11", className)} {...props} />;
+  return <input className={cn(fieldBase, "h-10", className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
@@ -52,7 +52,7 @@ export function Textarea({ className, ...props }: ComponentProps<"textarea">) {
 }
 
 export function Select({ className, ...props }: ComponentProps<"select">) {
-  return <select className={cn(fieldBase, "h-11 pr-8", className)} {...props} />;
+  return <select className={cn(fieldBase, "h-10 pr-8", className)} {...props} />;
 }
 
 export function Field({
@@ -60,7 +60,7 @@ export function Field({
 }: { label: string; hint?: ReactNode; error?: string; children: ReactNode; className?: string; required?: boolean }) {
   return (
     <label className={cn("flex flex-col gap-1.5", className)}>
-      <span className="text-xs font-semibold text-muted">
+      <span className="text-[11px] font-bold text-[var(--text-secondary)]">
         {label}
         {required && <span className="text-accent"> *</span>}
       </span>
@@ -71,7 +71,7 @@ export function Field({
 }
 
 export function Card({ className, ...props }: ComponentProps<"div">) {
-  return <div className={cn("rounded-3xl bg-surface border border-line", className)} {...props} />;
+  return <div className={cn("rounded-3xl bg-[var(--surface)] border border-[var(--border)] shadow-sm", className)} {...props} />;
 }
 
 type Tone = "neutral" | "accent" | "warning" | "danger" | "info";
@@ -94,9 +94,9 @@ export function Badge({ tone = "neutral", className, ...props }: ComponentProps<
 
 export function EmptyState({ title, body, action }: { title: string; body?: string; action?: ReactNode }) {
   return (
-    <div className="rounded-3xl border border-dashed border-line px-6 py-12 text-center">
-      <p className="font-semibold">{title}</p>
-      {body && <p className="mt-1 text-sm text-subtle">{body}</p>}
+    <div className="rounded-3xl bg-[var(--surface)] border border-dashed border-[var(--border)] px-6 py-10 text-center">
+      <p className="font-extrabold text-sm text-[var(--text-primary)]">{title}</p>
+      {body && <p className="mt-1 text-xs text-[var(--text-secondary)]">{body}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
@@ -104,10 +104,10 @@ export function EmptyState({ title, body, action }: { title: string; body?: stri
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-subtle">{subtitle}</p>}
+        <h1 className="text-lg font-black tracking-tight text-[var(--text-primary)]">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-xs text-[var(--text-secondary)]">{subtitle}</p>}
       </div>
       {actions && <div className="flex gap-2">{actions}</div>}
     </div>
@@ -115,5 +115,5 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 }
 
 export function Alert({ tone = "info", children }: { tone?: Tone; children: ReactNode }) {
-  return <div className={cn("rounded-2xl border px-4 py-3 text-sm", toneClass[tone])}>{children}</div>;
+  return <div className={cn("rounded-2xl border px-3.5 py-3 text-xs", toneClass[tone])}>{children}</div>;
 }

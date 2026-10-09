@@ -440,7 +440,11 @@ export function PropertyScreen({ d }: { d: PropertyDetail }) {
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-extrabold text-xs text-[var(--text-primary)] truncate">{d.contact.name}</span>
-                  {d.contact.agentCode && <span className="text-[10px] font-mono font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/15">{d.contact.agentCode}</span>}
+                  {d.contact.agentCode && (
+                    <Link href={`/agents/${d.contact.agentCode}`} className="text-[10px] font-mono font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/30">
+                      {d.contact.agentCode}
+                    </Link>
+                  )}
                 </div>
                 <p className="text-[10px] text-emerald-400 font-semibold mt-0.5 truncate">
                   {[

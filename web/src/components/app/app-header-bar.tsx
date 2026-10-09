@@ -37,14 +37,27 @@ function headerFor(path: string): HeaderConfig | null {
     "/dashboard": { title: "Seller & Landlord Center" },
     "/dashboard/agent": { title: "Agency Pro Dashboard" },
     "/dashboard/agent/collab": { title: "Agency-Owner Collab", back: "/dashboard/agent", showSearch: false },
+    "/agents": { title: "โปรไฟล์นายหน้า (Agency Profile)", back: true, showSearch: false },
     "/dashboard/commission": { title: "ระบบ Dwelly Commission", back: true, showSearch: false },
     "/dashboard/collab": { title: "ศูนย์บริหารนายหน้า (Owner-Agent Hub)", back: "/dashboard", showSearch: false },
     "/map": { title: "Dwelly Map" },
     "/pass": { title: "Your Dwelly Pass" },
     "/activities": { title: "ตารางกิจกรรม (Events)" },
+    "/me/favorites": { title: "ทรัพย์ที่บันทึกไว้ (Saved)", back: "/me", showSearch: false },
+    "/me/activity": { title: "นัดหมาย & ข้อเสนอของฉัน", back: "/me", showSearch: false },
+    "/me/verification": { title: "ยืนยันตัวตน (KYC)", back: "/me", showSearch: false },
+    "/me/privacy": { title: "ความเป็นส่วนตัว (PDPA)", back: "/me", showSearch: false },
+    "/dashboard/listings": { title: "ประกาศของฉัน", back: "/dashboard", showSearch: false },
+    "/dashboard/agent/profile": { title: "โปรไฟล์นายหน้า & Co-Agent", back: "/dashboard/agent", showSearch: false },
+    "/search": { title: "ค้นหาอสังหาฯ" },
+    "/welcome": { title: "ยินดีต้อนรับสู่ Dwelly", showSearch: false },
     "/login": { title: "เข้าสู่ระบบ / สมัครสมาชิก", back: true, showSearch: false },
   };
   if (exact[path]) return exact[path];
+  if (path.startsWith("/agents/")) return exact["/agents"];
+  if (path.startsWith("/dashboard/listings/") && path !== "/dashboard/listings/new") return { title: "จัดการประกาศ", back: "/dashboard/listings", showSearch: false };
+  if (path.startsWith("/hubs/")) return { title: "Dwelly Hub", back: "/hubs", showSearch: false };
+  if (path.startsWith("/legal/")) return { title: "ข้อกำหนดและนโยบาย", back: true, showSearch: false };
   if (path === "/plans" || path === "/dashboard/listings/new" || path.startsWith("/property/") || path.startsWith("/zones/") || path.startsWith("/messages/")) return null;
   return { back: true };
 }

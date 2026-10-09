@@ -14,7 +14,7 @@ export default async function MeLayout({ children }: LayoutProps<"/me">) {
   return (
     <div>
       <TabNav tabs={TABS} />
-      <div className="mt-6">{children}</div>
+      <div className="mt-4">{children}</div>
     </div>
   );
 }

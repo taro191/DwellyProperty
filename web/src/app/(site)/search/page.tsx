@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { List, Map as MapIcon } from "lucide-react";
+import { List, Map as MapIcon, SlidersHorizontal } from "lucide-react";
 import { getViewer } from "@/lib/auth";
 import { PAGE_SIZE, parseFilters } from "@/lib/queries";
 import { favoriteIds, searchListings } from "@/server/services/listings";
@@ -40,11 +40,22 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     .map((p) => ({ id: p.id, code: p.code, title: p.title, lat: p.lat!, lng: p.lng!, priceLabel: primaryPrice(p).label }));
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-      <aside>
-        <form action="/search" className="space-y-4 rounded-3xl border border-line bg-surface p-4 lg:sticky lg:top-20">
+    <div className="flex flex-col gap-4">
+      <form action="/search" className="flex gap-2">
+        {view === "map" && <input type="hidden" name="view" value="map" />}
+        <Input name="q" defaultValue={filters.q} placeholder="ค้นหาทำเล / โครงการ / รหัสประกาศ" aria-label="คำค้น" className="flex-1" />
+        <button className={buttonClass("primary", "md")}>ค้นหา</button>
+      </form>
+      <details className="group rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-extrabold text-[var(--text-primary)]">
+          <span className="flex items-center gap-1.5">
+            <SlidersHorizontal className="h-4 w-4 text-[var(--accent)]" /> ตัวกรองเพิ่มเติม
+          </span>
+          <span className="text-[10px] text-[var(--text-secondary)] group-open:hidden">แตะเพื่อเปิด</span>
+        </summary>
+        <form action="/search" className="space-y-3 border-t border-[var(--border)] p-4">
+          <input type="hidden" name="q" value={filters.q ?? ""} />
           {view === "map" && <input type="hidden" name="view" value="map" />}
-          <Input name="q" defaultValue={filters.q} placeholder="ค้นหาทำเล / โครงการ" aria-label="คำค้น" />
           <div className="grid grid-cols-2 gap-2">
             <Select name="type" defaultValue={filters.type ?? ""} aria-label="ซื้อหรือเช่า">
               <option value="">ซื้อ/เช่า</option>
@@ -72,11 +83,11 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
             <option value="">ห้องนอน: ไม่ระบุ</option>
             {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}+ ห้องนอน</option>)}
           </Select>
-          <label className="flex items-center gap-2 text-sm text-muted">
-            <input type="checkbox" name="verified" value="1" defaultChecked={filters.verified} className="accent-emerald-500" /> เฉพาะที่ตรวจสอบแล้ว
+          <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+            <input type="checkbox" name="verified" value="1" defaultChecked={filters.verified} className="accent-[var(--accent)]" /> เฉพาะที่ตรวจสอบแล้ว
           </label>
-          <label className="flex items-center gap-2 text-sm text-muted">
-            <input type="checkbox" name="pets" value="1" defaultChecked={filters.pets} className="accent-emerald-500" /> เลี้ยงสัตว์ได้
+          <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-secondary)]">
+            <input type="checkbox" name="pets" value="1" defaultChecked={filters.pets} className="accent-[var(--accent)]" /> เลี้ยงสัตว์ได้
           </label>
           <Select name="sort" defaultValue={filters.sort} aria-label="เรียงลำดับ">
             <option value="recommended">แนะนำ</option>
@@ -84,22 +95,22 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
             <option value="price_asc">ราคา ต่ำ → สูง</option>
             <option value="price_desc">ราคา สูง → ต่ำ</option>
           </Select>
-          <button className={buttonClass("primary", "md", "w-full")}>ค้นหา</button>
-          <Link href={view === "map" ? "/search?view=map" : "/search"} className="block text-center text-xs text-subtle hover:text-fg">
+          <button className={buttonClass("primary", "md", "w-full")}>ใช้ตัวกรอง</button>
+          <Link href={view === "map" ? "/search?view=map" : "/search"} className="block text-center text-xs text-[var(--text-secondary)] hover:text-white">
             ล้างตัวกรอง
           </Link>
         </form>
-      </aside>
+      </details>
 
       <section>
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-sm text-muted">พบ <b className="text-fg">{total.toLocaleString("th-TH")}</b> รายการ</p>
-          <div className="flex gap-1 rounded-2xl bg-surface-2 p-1">
-            <Link href={qs({ view: undefined })} className={cn("flex items-center gap-1 rounded-xl px-3 py-1.5 text-sm", view === "list" ? "bg-surface text-fg" : "text-subtle")}>
-              <List className="h-4 w-4" /> รายการ
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs text-[var(--text-secondary)]">พบ <b className="text-[var(--text-primary)]">{total.toLocaleString("th-TH")}</b> รายการ</p>
+          <div className="flex gap-1 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] p-1">
+            <Link href={qs({ view: undefined })} className={cn("flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold", view === "list" ? "bg-[var(--accent)] text-[var(--bg)]" : "text-[var(--text-secondary)]")}>
+              <List className="h-3.5 w-3.5" /> รายการ
             </Link>
-            <Link href={qs({ view: "map", page: undefined })} className={cn("flex items-center gap-1 rounded-xl px-3 py-1.5 text-sm", view === "map" ? "bg-surface text-fg" : "text-subtle")}>
-              <MapIcon className="h-4 w-4" /> แผนที่
+            <Link href={qs({ view: "map", page: undefined })} className={cn("flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold", view === "map" ? "bg-[var(--accent)] text-[var(--bg)]" : "text-[var(--text-secondary)]")}>
+              <MapIcon className="h-3.5 w-3.5" /> แผนที่
             </Link>
           </div>
         </div>
@@ -107,18 +118,18 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
         {items.length === 0 ? (
           <EmptyState title="ไม่พบทรัพย์ที่ตรงกับเงื่อนไข" body="ลองปรับตัวกรองหรือขยายช่วงราคา" />
         ) : view === "map" ? (
-          <div className="h-[70vh] overflow-hidden rounded-3xl border border-line">
+          <div className="h-[65vh] overflow-hidden rounded-3xl border border-[var(--border)]">
             <ListingsMap points={points} className="h-full w-full" />
           </div>
         ) : (
           <>
             <PropertyGrid items={items} favorites={favorites} signedIn={Boolean(viewer)} />
             {pages > 1 && (
-              <nav className="mt-8 flex items-center justify-center gap-2" aria-label="หน้า">
+              <nav className="mt-6 flex items-center justify-center gap-2" aria-label="หน้า">
                 {(filters.page ?? 1) > 1 && (
                   <Link href={qs({ page: String((filters.page ?? 1) - 1) })} className={buttonClass("secondary", "sm")}>ก่อนหน้า</Link>
                 )}
-                <span className="text-sm text-subtle">หน้า {filters.page} / {pages}</span>
+                <span className="text-xs text-[var(--text-secondary)]">หน้า {filters.page} / {pages}</span>
                 {(filters.page ?? 1) < pages && (
                   <Link href={qs({ page: String((filters.page ?? 1) + 1) })} className={buttonClass("secondary", "sm")}>ถัดไป</Link>
                 )}

@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/server/db";
 import {
   agency_pods, agent_profiles, commission_access_requests as car, commission_programs, pod_members, profiles, properties,
-  reports, user_roles, verification_documents, verification_requests, zones,
+  reports, reviews, user_roles, verification_documents, verification_requests, zones,
 } from "@/server/db/schema";
 import { AppError, audit, forbidden, isStaff, nextCounter, notFound, notify, requireActive, type Actor, type Tx } from "./core";
 import type { ReportReason, ReportTarget, VerificationKind } from "@/lib/types";
@@ -365,4 +365,19 @@ export async function requestListingAccess(actor: Actor, propertyId: string, mes
       type: "commission", title: "นายหน้าขอสิทธิ์ Co-Agent", body: row.p.title, link: "/dashboard/commission?tab=permissions", entityType: "commission_access", entityId: id,
     });
   });
+}
+
+/** Public agent page by agent code (design: `vm`): profile, closed deals, active listings and published reviews. */
+export async function publicAgentProfile(code: string) {
+  const [row] = await db.select({ a: agent_profiles, p: profiles }).from(agent_profiles)
+    .innerJoin(profiles, eq(profiles.id, agent_profiles.user_id)).where(eq(agent_profiles.agent_code, code.toUpperCase())).limit(1);
+  if (!row || row.p.status !== "active") return null;
+  const mine = or(eq(properties.agent_id, row.a.user_id), eq(properties.owner_id, row.a.user_id));
+  const [closed, active, rv] = await Promise.all([
+    db.select().from(properties).where(and(mine, inArray(properties.status, ["sold", "rented"]))).orderBy(desc(properties.updated_at)).limit(20),
+    db.select().from(properties).where(and(mine, eq(properties.status, "active"))).orderBy(desc(properties.updated_at)).limit(20),
+    db.select({ r: reviews, name: profiles.display_name }).from(reviews).innerJoin(profiles, eq(profiles.id, reviews.reviewer_id))
+      .where(and(eq(reviews.target_type, "agent"), eq(reviews.target_id, row.a.user_id), eq(reviews.status, "published"))).orderBy(desc(reviews.created_at)).limit(30),
+  ]);
+  return { agent: row.a, profile: row.p, closed, active, reviews: rv.map((x) => ({ ...x.r, reviewer_name: x.name })) };
 }
